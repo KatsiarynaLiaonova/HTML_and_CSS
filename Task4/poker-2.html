@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Poker</title>
+    <style>
+        body {
+            background-color: aqua;
+        }
+        h1 {
+            margin-top: 0px;
+        }
+        .forBorderImage {
+            border: 50px solid transparent;
+            border-image: url(ramka.png) 100 stretch stretch;
+            background-color: white;
+        }
+        .combination {
+            border: 3px green solid;
+            padding: 20px;
+        }
+        .blocks {
+            width: 140px;
+            height: 190px;
+            display: inline-block;
+        }
+        #firstCard {
+            background-image: url(cards2.png);
+            background-position-y: -2330px; 
+        }
+        #secondCard {
+            background-image: url(cards2.png);
+            background-position-x: -145px;
+            background-position-y: -2135px;
+        }
+        #thirdCard {
+            background-image: url(cards2.png);
+            background-position-x: -290px;
+            background-position-y: -1940px;
+        }
+        #forthCard {
+            background-image: url(cards2.png);
+            background-position-x: -435px;
+            background-position-y: -1745px;
+        }
+        #fifthCard {
+            background-image: url(cards2.png);
+            background-position-x: -145px;
+            background-position-y: -1550px;
+        }
+        </style>
+</head>
+<body>
+    <div class="forBorderImage">
+    <div class="text">
+        <h1>Покер</h1>
+        <p>По́кер (англ. poker) — карточная игра, цель которой — выиграть ставки, собрав как можно более высокую покерную комбинацию, используя 4 (старый классический вариант), или 5 карт, или вынудив всех соперников прекратить участвовать в игре. Игра идёт с полностью или частично закрытыми картами. Конкретные правила могут варьироваться в зависимости от разновидности покера. Обобщающими элементами всех разновидностей покера являются комбинации и наличие торговли в процессе игры.</p>
+        <p>Ввиду того, что игрок не знает карты своих противников, покер является игрой с неполной информацией, как и многие другие карточные игры, в отличие от, например, шахмат, в которых оба игрока видят положение всех фигур на доске.</p>
+    </div>
+    <h2>Комбинация в покере — стрит</h2>
+    <div class="combination">
+        <div class="blocks" id="firstCard"></div> 
+        <div class="blocks" id="secondCard"></div>
+        <div class="blocks" id="thirdCard"></div>
+        <div class="blocks" id="forthCard"></div>
+        <div class="blocks" id="fifthCard"></div>
+    </div>
+    </div>     
+</body>
+</html>
