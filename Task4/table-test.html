@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>table-test</title>
+    <style>
+        table {
+            border: blue 2px solid;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        td {
+            border: blue 2px solid;
+            padding: 5px; 
+        }
+        th {
+            background-color: #888888;
+            color: white;
+            border: none;
+            padding: 5px;
+        }
+        .centeredText {
+            text-align: center;
+        }
+        .right {
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <table border="1">
+        <thead>
+          <th>Название1</th><th>Название2</th><th>Ещё название</th><th>Куча элементов</th><th>Список1</th><th>Список2</th>
+        </thead>
+        <tr>
+            <td rowspan="11">JPMC</td><td rowspan="5">CST</td><td rowspan="3">CT</td><td>ADS</td><td class="centeredText">1</td><td class="centeredText">10</td>
+        </tr>
+        <tr>
+            <td>BTO</td><td class="centeredText">2</td><td class="centeredText">15</td>
+        </tr>
+        <tr>
+            <td>CSI</td><td class="centeredText">3</td><td class="centeredText">16</td>
+        </tr>
+        <tr>
+            <td rowspan="2" class="centeredText">VCT</td><td>ADS</td><td class="centeredText">4</td><td class="centeredText">10</td>
+        </tr>
+        <tr>
+            <td>BTO</td><td class="centeredText">5</td><td class="centeredText">15</td>
+        </tr>
+        <tr>
+            <td colspan="3" class="right">Sub total</td><td class="centeredText">6</td><td class="centeredText">15</td>
+        </tr>
+        <tr>
+            <td rowspan="4">CST</td><td rowspan="3">CT</td><td>ADS</td><td class="centeredText">7</td><td class="centeredText">10</td>
+        </tr>
+        <tr>
+            <td>BTO</td><td class="centeredText">8</td><td class="centeredText">15</td>
+        </tr>
+        <tr>
+            <td>CSI</td><td class="centeredText">9</td><td class="centeredText">16</td>
+        </tr>
+        <tr>
+            <td class="centeredText">VCT</td><td>ADS</td><td class="centeredText">10</td><td class="centeredText">10</td>
+        </tr>
+        <tr>
+            <td colspan="3" class="right">Sub total</td><td class="centeredText">11</td><td class="centeredText">15</td>
+        </tr>
+    </table>  
+</body>
+</html>
