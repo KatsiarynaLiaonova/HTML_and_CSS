@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>table-test</title>
+    <style>
+        .table1 {
+            border: blue 2px solid;
+            border-collapse: collapse;
+            width: 100%;
+        }
+        table.table1 tr > td {
+            border: blue 3px solid;
+            padding: 5px; 
+        }
+        th {
+            background-color: #888888;
+            color: white;
+            border: none;
+            padding: 5px;
+        }
+        .centeredText {
+            text-align: center;
+        }
+        .right {
+            text-align: right;
+        }
+        table.table2 tr > td {   
+            border: 0px;
+            border-collapse: collapse;
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            margin: 0;
+            border-spacing: 0;
+        }
+        table.table3 tr > td {   
+            border: 0px;
+            border-collapse: collapse;
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            margin: 0;
+            border-spacing: 0;
+        }
+        table.table4 tr > td {   
+            border: 0px;
+            border-collapse: collapse;
+            width: 40px;
+            height: 40px;
+            padding: 0;
+            margin: 0;
+            border-spacing: 0;
+        }
+         </style>
+</head>
+<body>
+    <table class="table1" border="1">
+        <thead>
+          <th>Название1</th><th>Название2</th><th>Ещё название</th><th>Куча элементов</th><th>Список1</th><th>Список2</th>
+        </thead>
+        <tr>
+            <td rowspan="11">JPMC</td><td rowspan="5">CST</td><td rowspan="3">CT</td><td>ADS</td><td class="centeredText">1</td><td class="centeredText">10</td>
+        </tr>
+        <tr>
+            <td>BTO</td><td class="centeredText">2</td><td class="centeredText">15</td>
+        </tr>
+        <tr>
+            <td>CSI</td><td class="centeredText">3</td><td class="centeredText">16</td>
+        </tr>
+        <tr>
+            <td rowspan="2" class="centeredText">VCT</td><td>ADS</td><td class="centeredText">4</td><td class="centeredText">10</td>
+        </tr>
+        <tr>
+            <td>BTO</td><td class="centeredText">5</td><td class="centeredText">15</td>
+        </tr>
+        <tr>
+            <td colspan="3" class="right">Sub total</td><td class="centeredText">6</td><td class="centeredText">15</td>
+        </tr>
+        <tr>
+            <td rowspan="4">CST</td><td rowspan="3">CT</td><td>ADS</td><td class="centeredText">7</td><td class="centeredText">10</td>
+        </tr>
+        <tr>
+            <td>BTO</td><td class="centeredText">8</td><td class="centeredText">15</td>
+        </tr>
+        <tr>
+            <td>CSI</td><td class="centeredText">9</td><td class="centeredText">16</td>
+        </tr>
+        <tr>
+            <td class="centeredText">VCT</td><td>ADS</td><td class="centeredText">10</td><td class="centeredText">10</td>
+        </tr>
+        <tr>
+            <td colspan="3" class="right">Sub total</td><td class="centeredText">11</td><td class="centeredText">15</td>
+        </tr>
+    </table> <br> 
+    <table class="table2" cellspacing="0">
+        <tr>
+            <td style="background-color: red"></td><td style="background-color: white"></td><td style="background-color: red"></td><td style="background-color: rgb(127, 255, 0);"></td><td style="background-color: red"></td><td style="background-color: white"></td><td style="background-color: red"></td>
+        </tr>
+        <tr>
+            <td style="background-color: white"></td><td style="background-color: red"></td><td style="background-color: rgb(127, 255, 0);"></td><td style="background-color: white"></td><td style="background-color: rgb(127, 255, 0);"></td><td style="background-color: red"></td><td style="background-color: white"></td>
+        </tr>
+        <tr>
+            <td style="background-color: red"></td><td style="background-color: rgb(127, 255, 0);"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(127, 255, 0);"></td><td style="background-color: red"></td>
+        </tr>
+        <tr>
+            <td style="background-color: rgb(127, 255, 0);"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: red"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(127, 255, 0);"></td>
+        </tr>
+        <tr>
+            <td style="background-color: red"></td><td style="background-color: rgb(127, 255, 0);"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(127, 255, 0);"></td><td style="background-color: red"></td>
+        </tr>
+        <tr>
+            <td style="background-color: white"></td><td style="background-color: red"></td><td style="background-color: rgb(127, 255, 0);"></td><td style="background-color: white"></td><td style="background-color: rgb(127, 255, 0);"></td><td style="background-color: red"></td><td style="background-color: white"></td>
+        </tr>
+        <tr>
+            <td style="background-color: red"></td><td style="background-color: white"></td><td style="background-color: red"></td><td style="background-color: rgb(127, 255, 0);"></td><td style="background-color: red"></td><td style="background-color: white"></td><td style="background-color: red"></td>
+        </tr>
+    </table>
+    <table class="table3" cellspacing="0">
+        <tr>
+            <td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(34, 128, 34)"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td>
+        </tr>
+        <tr>
+            <td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(34, 128, 34)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(34, 128, 34)"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: white"></td><td style="background-color: white"></td>
+        </tr>
+        <tr>
+            <td style="background-color: white"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 105, 180)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(34, 128, 34)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(34, 128, 34)"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 105, 180)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: white"></td>
+        </tr>
+        <tr>
+            <td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 105, 180)"></td><td style="background-color: rgb(255, 182, 193)"></td><td style="background-color: rgb(255, 105, 180)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: white"></td><td style="background-color: rgb(34, 128, 34)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(127, 255, 0);"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(34, 128, 34)"></td><td style="background-color: white"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 105, 180)"></td><td style="background-color: rgb(255, 182, 193)"></td><td style="background-color: rgb(255, 105, 180)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 20, 147)"></td>
+        </tr>
+        <tr>
+            <td style="background-color: white"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 105, 180)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(34, 128, 34)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(34, 128, 34)"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 105, 180)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: white"></td>
+        </tr>
+        <tr>
+            <td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(34, 128, 34)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(34, 128, 34)"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: rgb(238, 120, 238)"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: white"></td><td style="background-color: white"></td>
+        </tr>
+        <tr>
+            <td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(34, 128, 34)"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: rgb(255, 20, 147)"></td><td style="background-color: white"></td><td style="background-color: white"></td><td style="background-color: white"></td>
+        </tr>
+    </table>
+    <table class="table4" cellspacing="0">
+        <tr>
+            <td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: rgb(0, 128, 0)"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: black"></td><td style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: rgb(0, 128, 0)"></td><td style="background-color: rgb(0, 128, 0)"></td><td style="background-color: rgb(0, 128, 0)"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: black"></td><td style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td style="background-color: black"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: rgb(50, 205, 50)"></td><td style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: rgb(0, 128, 0)"></td><td style="background-color: rgb(0, 128, 0)"></td><td style="background-color: rgb(0, 128, 0)"></td><td style="background-color: rgb(0, 128, 0)"></td><td style="background-color: rgb(0, 128, 0)"></td><td  style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td style="background-color: black"></td><td style="background-color: black"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: rgb(46, 139, 87)"></td><td style="background-color: black"></td><td style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td style="background-color: black"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: rgb(60, 179, 113)"></td><td style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td colspan=11 style="background-color: rgb(50, 205, 50)"></td>
+        </tr>
+        <tr>
+            <td colspan="4" style="background-color: black"></td><td style="background-color: rgb(139, 69, 19)"></td><td style="background-color: rgb(184, 134, 11)"></td><td style="background-color: rgb(139, 69, 19)"></td><td colspan="4" style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td colspan="4" style="background-color: black"></td><td style="background-color: rgb(139, 69, 19)"></td><td style="background-color: rgb(184, 134, 11)"></td><td style="background-color: rgb(139, 69, 19)"></td><td colspan="4" style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td colspan="4" style="background-color: black"></td><td style="background-color: rgb(139, 69, 19)"></td><td style="background-color: rgb(184, 134, 11)"></td><td style="background-color: rgb(139, 69, 19)"></td><td colspan="4" style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td colspan="4" style="background-color: black"></td><td style="background-color: rgb(139, 69, 19)"></td><td style="background-color: rgb(184, 134, 11)"></td><td style="background-color: rgb(139, 69, 19)"></td><td colspan="4" style="background-color: black"></td>
+        </tr>
+        <tr>
+            <td colspan="4" style="background-color: black"></td><td style="background-color: rgb(139, 69, 19)"></td><td style="background-color: rgb(184, 134, 11)"></td><td style="background-color: rgb(139, 69, 19)"></td><td colspan="4" style="background-color: black"></td>
+        </tr>
+    </table>
+</body>
+</html>
