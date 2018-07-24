@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>position-images</title>
+    <style>
+    div {
+        width: 100%;
+        border: 0px;
+        font-family: Arial, Helvetica, sans-serif;
+        height: auto;
+    }
+    #advertise {
+        width: 200px;
+        background-color: yellow;
+        color: blue;
+        right: 20px;
+        top: 10%;
+        position: fixed;
+        z-index: 1;
+        padding: 3%;
+    }
+    #no-smoking {
+        position: absolute;
+        z-index: 100;
+        left: 50px;
+        right: 50px;
+        top: 50px;
+    }
+     #biohazard {
+        position: absolute;
+        z-index: 4;
+        left: 1px;
+    }
+    #man-and-woman {
+        position: absolute;
+        z-index: 3;
+        right: 1px;
+    }
+    #yin-yang {
+        position: absolute;
+        z-index: 2;
+        bottom: 1px;
+        left: 75px;
+        right: 75px;
+    }
+    #images {
+        position: relative;
+        width: 300px;
+        margin: 0 auto;
+        height: 300px;
+    }
+    #to-top {
+        position: relative;
+        text-align: center;
+        bottom: 20px;
+        top: 20px;
+    }
+    </style>
+</head>
+<body>
+    <h2 id="What">What is Lorem Ipsum?</h2>
+    <div name="whatIsLoemIpsum" id="firstPar">Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.</div>
+    <h2>Why do we use it?</h2>
+    <div name="why" id="why">It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout. The point of using Lorem Ipsum is that it has a more-or-less normal distribution of letters, as opposed to using 'Content here, content here', making it look like readable English. Many desktop publishing packages and web page editors now use Lorem Ipsum as their default model text, and a search for 'lorem ipsum' will uncover many web sites still in their infancy. Various versions have evolved over the years, sometimes by accident, sometimes on purpose (injected humour and the like).</div>
+    <h2>Where does it come from?</h2>
+    <div name="Where" id="Where">Contrary to popular belief, Lorem Ipsum is not simply random text. It has roots in a piece of classical Latin literature from 45 BC, making it over 2000 years old. Richard McClintock, a Latin professor at Hampden-Sydney College in Virginia, looked up one of the more obscure Latin words, consectetur, from a Lorem Ipsum passage, and going through the cites of the word in classical literature, discovered the undoubtable source. Lorem Ipsum comes from sections 1.10.32 and 1.10.33 of "de Finibus Bonorum et Malorum" (The Extremes of Good and Evil) by Cicero, written in 45 BC. This book is a treatise on the theory of ethics, very popular during the Renaissance. The first line of Lorem Ipsum, "Lorem ipsum dolor sit amet..", comes from a line in section 1.10.32. The standard chunk of Lorem Ipsum used since the 1500s is reproduced below for those interested. Sections 1.10.32 and 1.10.33 from "de Finibus Bonorum et Malorum" by Cicero are also reproduced in their exact original form, accompanied by English versions from the 1914 translation by H. Rackham.</div>
+    <h2>Where can I get some?</h2>
+    <div name="whereI" id="whereI">There are many variations of passages of Lorem Ipsum available, but the majority have suffered alteration in some form, by injected humour, or randomised words which don't look even slightly believable. If you are going to use a passage of Lorem Ipsum, you need to be sure there isn't anything embarrassing hidden in the middle of text. All the Lorem Ipsum generators on the Internet tend to repeat predefined chunks as necessary, making this the first true generator on the Internet. It uses a dictionary of over 200 Latin words, combined with a handful of model sentence structures, to generate Lorem Ipsum which looks reasonable. The generated Lorem Ipsum is therefore always free from repetition, injected humour, or non-characteristic words etc.</div>
+    <div id="advertise">Здесь могла быть ваша реклама!!!!</div>
+    <div id="images"><img src="biohazard.png" alt="biohazard" id="biohazard" width="150px"></img>
+        <img src="man-and-woman.png" alt="man-and-woman" id="man-and-woman" width="150px"></img>
+        <img src="no-smoking.png" alt="no-smoking" id="no-smoking" width="200px"></img>
+        <img src="yin-yang.png" alt="yin-yang" id="yin-yang" width="150px"></img></div>
+    <p id="to-top"><a href="#What"><img src="to-top.png" alt="to-top"></a></p>
+</body>
+</html>
