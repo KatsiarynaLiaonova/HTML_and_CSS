@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>one-block</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" media="screen" href="main.css" />
+    <script src="main.js"></script>
+    <style>
+    body {
+  background-color: aqua;
+}
+.one-block {
+  width: 400px;
+  height: 400px;
+  margin: 0 auto;
+  margin-top: 50px;
+  background-color: yellow;
+}
+@media screen and (max-width:1280px) {
+  .one-block {
+    background-color: red;
+  }
+}
+@media screen and (max-width:1024px) {
+  .one-block {
+    background-color: red;
+    border-radius: 30%;
+  }
+}
+@media screen and (max-width:768px) {
+  .one-block {
+    background-color: yellow;
+    border-radius: 30%;
+  }
+}
+@media screen and (max-width:640px) {
+  .one-block {
+    background-color: yellow;
+    border-radius: 30%;
+    border: red 3px solid;
+  }
+}
+@media screen and (max-width:480px) {
+  .one-block {
+    background-color: yellow;
+    border-radius: 50%;
+    border: red 3px solid;
+    position: fixed;
+  }
+}
+@media screen and (max-width:320px) {
+  .one-block {
+    background-color: yellow;
+    position: fixed;
+    border-radius: 0%;
+    border: none;
+    left: 0px;
+  }
+}</style>
+</head>
+<body>
+        <div class="one-block"></div> 
+</body>
+</html>
