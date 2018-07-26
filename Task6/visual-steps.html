@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>pagination</title>
+    <style>
+    li {
+        list-style: none;
+        color: white;
+        font-family: Arial;
+        display: inline;
+        padding: 0.5%;
+        padding-left: 1%;
+        padding-right: 1%;
+        border-radius: 50%;
+        border: rgb(170, 164, 164) 2px solid;
+        background-color: rgb(136, 247, 63);
+        width: 50px;
+        height: 50px;
+        text-decoration:transparent;
+        margin-right: 20px;
+        
+    }
+    .four {
+        background-color: rgb(117, 21, 146);
+    }
+    .five {
+        background-color: rgb(170, 164, 164);
+        color: black;
+    }
+    .one::after {
+    content: " ";
+    display: inline-block;
+    background-color: rgb(172, 164, 164);
+    position: relative;
+    left: 70px;
+    top: 22px;
+    width: 55px;
+    height: 5px;
+    z-index: -1000;
+}
+.two::after {
+    content: " ";
+    display: inline-block;
+    background-color: rgb(172, 164, 164);
+    position: relative;
+    left: 120px;
+    top: 22px;
+    width: 55px;
+    height: 5px;
+    z-index: -1000;
+}
+.three::after {
+    content: " ";
+    display: inline-block;
+    background-color: rgb(172, 164, 164);
+    position: relative;
+    left: 170px;
+    top: 22px;
+    width: 55px;
+    height: 5px;
+    z-index: -1000;
+}
+.four::after {
+    content: " ";
+    display: inline-block;
+    background-color: rgb(172, 164, 164);
+    position: relative;
+    left: 220px;
+    top: 22px;
+    width: 55px;
+    height: 5px;
+    z-index: -1000;
+}
+        </style>
+</head>
+<body>
+    <ul>
+        <li class="one">1</li>
+        <li class="two">2</li>
+        <li class="three">3</li>
+        <li class="four">4</li>
+        <li class="five">5</li>
+    </ul>
+</body>
+</html>
