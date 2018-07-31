@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>animations</title>
+<style>
+#first-div {
+    width: 200px;
+    height: 20px;
+    background-color: green;
+    margin-top: 20px;
+    margin-left: 100px;
+    animation: first 1.1s infinite;
+}
+#second-div {
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(to top, red, blue);
+    margin-top: 20px;
+    margin-left: 200px;
+}
+#third-div {
+    border: 10px black double;
+    height: 30px;
+    margin-top: 20px;
+}
+#fourth-div {
+    height: 70px;
+    width: 30px;
+    background-color: aqua;
+    border-radius: 10px;
+    margin-top: 20px;
+    margin-left: 50px;
+}
+#fifth-div {
+    border: 1px black dashed;
+    background-color: yellow;
+    width: 50px;
+    height: 50px;
+    margin-left: 100px;
+    margin-top: 20px;
+    margin-bottom: 10px;
+}
+#parent {
+    border: 1px black dashed;
+}
+#parent:hover > #second-div{
+    animation: second 3s infinite;
+}
+#parent:hover > #third-div{
+    animation: third 0.2s infinite;
+}
+#parent:hover > #fourth-div{
+    animation: fourth 2.5s infinite linear;
+}
+#parent:hover > #fifth-div{
+    animation: fifth 4s infinite linear;
+}
+@keyframes first {
+    0% {
+    padding: 15px;
+    }
+    50% {
+    padding: 40px;
+    }
+    100% {
+    padding: 15px;
+    }
+}
+@keyframes second {
+    0% {
+    border-radius: 20%;
+  }
+    50% {
+    border-radius: 50%;
+  }
+    100% {
+    border-radius: 20%;
+  }
+}
+@keyframes third {
+    0% {
+    background-color: black;
+  }
+    50% {
+    background-color: blue;
+  }
+    100% {
+    background-color: yellow;
+  }
+}
+@keyframes fourth {
+    0% {
+    width: 50px;
+  }
+    50% {
+    width: 100px;
+  }
+    100% {
+    width: 150px;
+  }
+}
+@keyframes fifth {
+    0% {
+    margin-left: 50px;
+  }
+  50% {
+    margin-left: 100px;
+  }
+  100% {
+    margin-left: 50px;
+  }
+}
+</style>
+</head>
+<body>
+    <div id="parent">
+  <div id="first-div"></div>
+  <div id="second-div"></div>
+  <div id="third-div"></div>
+  <div id="fourth-div"></div>
+  <div id="fifth-div"></div>
+</div>
+</body>
+</html>
