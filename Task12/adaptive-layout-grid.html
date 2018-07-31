@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>adaptive-layout-grid</title>
+    <style>
+        html {
+	background: rgb(235, 236, 137);
+}
+body {
+    font-family: Arial;
+    font-weight: 700;
+	margin: 0;
+	display: grid;
+        grid-template-columns: 16.67% 1fr 16.66%;
+        grid-template-rows: 50px auto 50px;
+        grid-template-areas: "header header header"
+                            "aside1 article aside2"
+                            "footer footer footer";
+}
+header {
+    background-color: rgb(0, 225, 255); 
+    grid-area: header;
+}
+#nav {
+    display: block;
+    float: right;
+    margin-top: 20px;
+}
+#nav > a {
+    padding-right: 20px;
+    padding-left: 20px;
+}
+img {
+    height: 50px;
+}
+#content {
+    font-weight: 600;
+}
+#article {
+  background-color:rgb(0, 255, 234);
+  padding: 5px;
+  grid-area: article;
+}
+#aside-1  {
+  background-color: rgb(255, 217, 0);
+  grid-area: aside1;
+  text-align: center;
+}
+#aside-2 {
+  background-color: rgb(253, 103, 128);
+  grid-area: aside2;
+  text-align: center;
+}
+footer {
+	width: 100%;
+	color: whitesmoke;
+	margin: auto;
+	padding: 15px;
+	box-sizing: border-box;
+  background-color: rgb(100, 207, 141);
+grid-area: footer;
+}
+a {
+    text-decoration: none;
+    color: white;
+}
+#links {
+    display: block;
+    float: right;
+}
+#footer {
+    color: black;
+}
+        @media screen and (max-width:760px) {
+            body {
+	margin: 0;
+	display: grid;
+        grid-template-columns: 1fr 1fr 1fr 1fr;
+        grid-template-rows: 80px  auto 30px 30px;
+        grid-template-areas: "header header header header"
+                            "article article article article"
+                            "aside1 aside1 aside2 aside2"
+                            "footer footer footer footer";
+}
+#nav, img, #footer, #links {
+    display: block;
+    float: none; 
+    text-align: center;
+margin: 0 auto; 
+}
+        }
+        @media screen and (max-width:375px) {
+            body {
+	margin: 0;
+	display: grid;
+        grid-template-columns: 1fr;
+        grid-template-rows: 130px auto 30px 30px 100px;
+        grid-template-areas: "header"
+                            "article"
+                            "aside1"
+                            "aside2"
+                            "footer";
+}   
+#nav, img, #footer, #links {
+    display: block;
+    margin: 0 auto;
+    width: 80px; 
+}
+footer {
+    margin: 0px;
+}
+        }
+    </style>
+</head>
+<body>
+        <header>
+                <img src="https://thumb9.shutterstock.com/display_pic_with_logo/812164/506712292/stock-vector-logo-eye-lorem-ipsum-in-beauty-lowpoly-geometric-illustration-506712292.jpg">
+                <div id="nav">
+                  <a href="https://ru.lipsum.com/">Главная</a>
+                  <a href="https://ru.lipsum.com/">О нас</a>
+                  <a href="https://ru.lipsum.com/">Продукты</a>
+                  <a href="https://ru.lipsum.com/">Контакты</a>
+                </div>
+              </header>
+               <div id="article">
+                    <h1>Что такое Lorem Ipsum?</h1>
+                    <p>Lorem Ipsum - это текст-"рыба", часто используемый в печати и вэб-дизайне. Lorem Ipsum является стандартной "рыбой" для текстов на латинице с начала XVI века. В то время некий безымянный печатник создал большую коллекцию размеров и форм шрифтов, используя Lorem Ipsum для распечатки образцов. Lorem Ipsum не только успешно пережил без заметных изменений пять веков, но и перешагнул в электронный дизайн. Его популяризации в новое время послужили публикация листов Letraset с образцами Lorem Ipsum в 60-х годах и, в более недавнее время, программы электронной вёрстки типа Aldus PageMaker, в шаблонах которых используется Lorem Ipsum.</p>
+               <h2>Почему он используется?</h2>
+               <p>Давно выяснено, что при оценке дизайна и композиции читаемый текст мешает сосредоточиться. Lorem Ipsum используют потому, что тот обеспечивает более или менее стандартное заполнение шаблона, а также реальное распределение букв и пробелов в абзацах, которое не получается при простой дубликации "Здесь ваш текст.. Здесь ваш текст.. Здесь ваш текст.." Многие программы электронной вёрстки и редакторы HTML используют Lorem Ipsum в качестве текста по умолчанию, так что поиск по ключевым словам "lorem ipsum" сразу показывает, как много веб-страниц всё ещё дожидаются своего настоящего рождения. За прошедшие годы текст Lorem Ipsum получил много версий. Некоторые версии появились по ошибке, некоторые - намеренно (например, юмористические варианты).</p>
+                </div>
+               <aside id="aside-1">aside 1</aside>
+                 <aside id="aside-2">aside 2</aside>
+              <footer>
+                <div id="footer"> &#169 copyright</div>
+                <div id="links">
+                <a href="https://ru.lipsum.com/">Facebook</a>
+                <a href="https://ru.lipsum.com/">Vkontakte</a>
+                <a href="https://ru.lipsum.com/">twitter</a></div>
+              </footer>
+</body>
+</html>
