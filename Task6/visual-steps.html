@@ -2,38 +2,31 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>pagination</title>
+    <title>steps</title>
     <style>
     li {
-        list-style: none;
-        color: white;
-        font-family: Arial;
-        display: inline;
-        padding: 0.5%;
-        padding-left: 1%;
-        padding-right: 1%;
-        border-radius: 50%;
-        border: rgb(170, 164, 164) 2px solid;
-        background-color: rgb(136, 247, 63);
-        text-decoration:transparent;
-        margin-right: 20px;
-        
-    }
-    .four {
-        background-color: rgb(117, 21, 146);
-    }
-    .five {
-        background-color: rgb(170, 164, 164);
-        color: black;
-    }
-    .one::after {
+    list-style: none;
+    color: white;
+    font-family: Arial;
+    display: inline-block;
+    padding: 0.5%;
+    padding-left: 1%;
+    padding-right: 1%;
+    border-radius: 50%;
+    border: rgb(170, 164, 164) 2px solid;
+    background-color: rgb(136, 247, 63);
+    text-decoration: transparent;
+    margin-right: 20px;
+    height: 50px;
+    width: 50px;
+}
+.one::after {
     content: " ";
     display: inline-block;
     background-color: rgb(172, 164, 164);
     position: relative;
-    left: 70px;
-    top: 22px;
-    width: 55px;
+    left: 50px;
+    width: 100%;
     height: 5px;
     z-index: -1000;
 }
@@ -42,9 +35,8 @@
     display: inline-block;
     background-color: rgb(172, 164, 164);
     position: relative;
-    left: 120px;
-    top: 22px;
-    width: 55px;
+    left: 50px;
+    width: 100%;
     height: 5px;
     z-index: -1000;
 }
@@ -53,9 +45,8 @@
     display: inline-block;
     background-color: rgb(172, 164, 164);
     position: relative;
-    left: 170px;
-    top: 22px;
-    width: 55px;
+    left: 50px;
+    width: 100%;
     height: 5px;
     z-index: -1000;
 }
@@ -64,11 +55,20 @@
     display: inline-block;
     background-color: rgb(172, 164, 164);
     position: relative;
-    left: 220px;
-    top: 22px;
-    width: 55px;
+    left: 50px;
+    width: 100%;
     height: 5px;
     z-index: -1000;
+}
+.five {
+    background-color: rgb(170, 164, 164);
+    color: black;
+    display: inline-block;
+    position: relative;
+    top: -15px;
+}
+.four {
+    background-color: rgb(117, 21, 146);
 }
         </style>
 </head>
