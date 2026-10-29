@@ -1,0 +1,35 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const assert=require('assert');
+const BASE_URL=process.env.STORE_TEST_URL || 'http://127.0.0.1:8767';
+const backupFile=require('path').join(require('os').tmpdir(),`nile-roundtrip-${process.pid}.sqlite`);
+if(!['127.0.0.1','localhost'].includes(new URL(BASE_URL).hostname))throw Error('Tests require a local isolated database');
+(async()=>{
+ const browser=await chromium.launch({...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{}),args:['--no-sandbox','--disable-dev-shm-usage','--proxy-bypass-list=127.0.0.1;localhost']});
+ const p=await browser.newPage({acceptDownloads:true});let errors=[];p.on('pageerror',e=>errors.push(e.message));
+ await p.goto(BASE_URL);await p.locator('#scan').waitFor();
+ const initial=await p.evaluate(async()=>await(await fetch('/api/state')).json());
+ assert.equal(initial.products.length,0,'Refusing to run against existing product data');assert.equal(initial.shifts.length,0,'Use an empty test database');
+ const goto=async s=>p.locator(`[data-page=${s}]`).click();
+ const post=async(path,data)=>p.evaluate(async({path,data})=>{let r=await fetch('/api/'+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});let out=await r.json();if(!r.ok)throw Error(out.error);return out;},{path,data});
+ await goto('settings');for(const [k,v]of Object.entries({EUR:'0.9',EGP:'50',RUB:'90'}))await p.locator(`#ratesForm [name=${k}]`).fill(v);
+ await p.locator('#ratesForm button').click();await p.locator('#applyChanges').click();await p.locator('#operationDialog').waitFor({state:'hidden'});
+ await goto('inventory');const f=p.locator('#productForm');await f.locator('[name=name]').fill('قهوة Кофе Coffee');await f.locator('[name=barcode]').fill('123456');await f.locator('[name=price]').fill('10');await f.locator('[name=min_stock]').fill('3');await f.locator('button').click();await p.locator('#batchForm [name=product] option').waitFor({state:'attached'});
+ const batch=p.locator('#batchForm');await batch.locator('[name=qty]').fill('5');await batch.locator('[name=cost]').fill('100');await batch.locator('[name=supplier]').fill('مورد Supplier');await batch.locator('[name=invoice]').fill('INV-1');await batch.locator('button').click();await p.getByText('INV-1',{exact:true}).waitFor();
+ await goto('shifts');await p.locator('#openShift [name=EGP]').fill('100');await p.locator('#openShift button').click();await p.locator('#closeShift').waitFor();
+ await goto('settings');await p.locator('[name=card_percent]').fill('2');await p.locator('[name=card_fixed]').fill('1');await p.locator('#feesForm button').click();await p.waitForTimeout(100);
+ await goto('pos');await p.locator('#scan').fill('123456');await p.locator('#scan').press('Enter');await p.locator('#method').selectOption('card');await p.locator('#checkout').click();await p.locator('#lastReceipt').waitFor();
+ await goto('reports');assert((await p.locator('.stats').textContent()).includes('389,00'),'after-fee profit should be 389');
+ await p.locator('[data-void]').click();await p.locator('#voidForm [name=reason]').fill('Wrong test item');await p.locator('#voidForm [name=confirmed]').check();await p.locator('#voidForm button').click();await p.locator('#operationDialog').waitFor({state:'hidden'});
+ assert((await p.locator('.stats').textContent()).includes('-11,00'),'nonrefunded commission remains');assert.equal(await p.locator('[data-void]').count(),0);
+ await goto('adjustments');await p.locator('#adjustForm [name=kind]').selectOption('writeoff');await p.locator('#adjustForm [name=qty]').fill('1');await p.locator('#adjustForm [name=reason]').fill('Damaged');await p.locator('#adjustForm button').click();await p.getByText('Damaged',{exact:true}).waitFor();
+ await goto('labelsBatch');await p.locator('#selectLabels').click();await p.locator('[data-copies]').fill('2');await p.locator('#printLabels').click();assert.equal(await p.locator('.label-preview').count(),2);await p.locator('#labelsPrinted').click();await p.locator('#printDialog').waitFor({state:'hidden'});assert.equal(await p.locator('[data-copies]').count(),0);
+ await goto('settings');await p.locator('#roundingForm [name=EGP]').fill('5');await p.locator('#roundingForm button').click();await p.locator('#applyChanges').click();await p.locator('#operationDialog').waitFor({state:'hidden'});
+ await goto('shifts');for(const [k,v]of Object.entries({USD:'0',EUR:'0',EGP:'100',RUB:'0'}))await p.locator(`#closeShift [name=${k}]`).fill(v);await p.locator('#closeShift button').click();await p.locator('#openShift').waitFor();
+ await goto('settings');const downloaded=p.waitForEvent('download');await p.getByText('Скачать файл копии',{exact:true}).click();const download=await downloaded;await download.saveAs(backupFile);
+ await post('products',{name:'Temporary product',barcode:'TEMP123',price:1,unit:'piece'});
+ await p.locator('#restoreFile').setInputFiles(backupFile);await p.locator('#restoreConfirm').fill('RESTORE');await p.locator('#restoreForm button').click();await p.getByText(/Данные восстановлены/).waitFor();
+ assert.equal((await p.evaluate(async()=>await(await fetch('/api/state')).json())).products.length,1);
+ await p.locator('#language').selectOption('ar');for(const page of ['shifts','adjustments','labelsBatch','reports','settings']){await goto(page);assert.equal(await p.locator('html').getAttribute('dir'),'rtl');}
+ await p.screenshot({path:require('path').join(require('os').tmpdir(),'nile-v2-arabic.png'),fullPage:true});await p.locator('#language').selectOption('ru');await goto('shifts');await p.screenshot({path:require('path').join(require('os').tmpdir(),'nile-v2-shifts.png'),fullPage:true});
+ assert.deepEqual(errors,[]);console.log('PASS: rate preview, inventory supplier/minimum, shift, card fee, checkout, void, write-off, batch labels, rounding preview, close, backup download and restore, Arabic screens; no browser errors');await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});

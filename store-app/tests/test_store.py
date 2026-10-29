@@ -2,10 +2,11 @@ import tempfile,unittest,sys,json
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import server
-class StoreTests(unittest.TestCase):
+class StoreFixture:
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory();server.DATA=Path(self.temp.name);server.initialize()
         with server.connect() as db:
+            server.mutate(db,'/api/shift-open',{'opening':dict.fromkeys(server.CURRENCIES,0)})
             server.mutate(db,'/api/rates',{'EUR':.9,'EGP':50,'RUB':90})
             self.p=server.mutate(db,'/api/products',{'name':'قهوة Кофе Coffee','barcode':'123456','unit':'kg','price':10})['products'][0]
             for qty,cost in [(2,100),(3,150)]:server.mutate(db,'/api/batches',{'product':self.p['id'],'qty':qty,'cost':cost})
@@ -13,6 +14,8 @@ class StoreTests(unittest.TestCase):
     def sale(self,**kw):
         d={'currency':'EGP','method':'cash','items':[{'id':self.p['id'],'qty':3}],'tender':2000};d.update(kw)
         with server.connect() as db:return server.checkout(db,d)
+
+class StoreTests(StoreFixture,unittest.TestCase):
     def test_fifo_and_change(self):
         s=self.sale();self.assertEqual(s['cost_egp'],350);self.assertEqual(s['total'],1500);self.assertEqual(s['change'],500)
         self.assertEqual([b['qty'] for b in s['items'][0]['fifo']],[2,1])
