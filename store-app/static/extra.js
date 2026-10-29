@@ -30,6 +30,7 @@ function modal(title, content) {
 
 const inventoryBase=renderInventory;
 renderInventory=function() {
+  cart=cart.map(l=>({...state.products.find(p=>p.id===l.id),qty:l.qty,discount:l.discount})).filter(l=>l.id);
   inventoryBase();
   $('productForm').querySelector('.fields').insertAdjacentHTML('beforeend',numberField('minStock',0,'min="0" step=".001"').replace('name="minStock"','name="min_stock"'));
   $('batchForm').querySelector('.fields').insertAdjacentHTML('afterend',`<div class="fields">${field('supplier','<input name="supplier" list="suppliers" dir="auto">')}${field('invoice','<input name="invoice" dir="auto">')}</div><datalist id="suppliers">${[...new Set(state.batches.map(b=>b.supplier).filter(Boolean))].map(s=>`<option value="${esc(s)}">`).join('')}</datalist>`);

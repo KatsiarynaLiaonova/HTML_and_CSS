@@ -126,6 +126,13 @@ class OperationTests(StoreFixture,unittest.TestCase):
         with self.assertRaises(ValueError):server.restore_database(base64.b64encode(Path(result['file']).read_bytes()).decode(),'RESTORE')
         self.assertEqual(len(self.current()['products']),1)
 
+    def test_half_cent_weight_discount(self):
+        self.command('product-update',{'id':self.p['id'],'name':'Test','barcode':'123456','price':.01})
+        s=self.sale(currency='USD',items=[{'id':self.p['id'],'qty':.5,'discount':{'type':'percent','value':50}}])
+        self.assertEqual(s['items'][0]['gross'],.01)
+        self.assertEqual(s['items'][0]['discount'],.01)
+        self.assertEqual(s['total'],0)
+
     def test_supplier_invoice_and_minimum(self):
         self.command('batches',{'product':self.p['id'],'qty':1,'cost':99,'supplier':'مورد','invoice':'INV-1'})
         self.assertEqual(self.current()['batches'][-1]['supplier'],'مورد')
