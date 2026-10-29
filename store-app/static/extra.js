@@ -119,6 +119,8 @@ function labelMarkup(p) {
 const printBase=showPrint;
 showPrint=function(html,width,height) {
   printBase(html,width,height);
+  const pageHeight=height||Math.ceil($('printArea').scrollHeight*25.4/96)+8;
+  $('pageStyle').textContent=`@media print{@page{size:${width}mm ${pageHeight}mm;margin:${height?'0':'3mm'}}`;
   const button=$('labelsPrinted');if(button)button.hidden=true;
 };
 function printLabelJob(items) {

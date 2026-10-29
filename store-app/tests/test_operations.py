@@ -1,3 +1,4 @@
+from contextlib import closing
 import base64
 import json
 import sqlite3
@@ -121,7 +122,7 @@ class OperationTests(StoreFixture,unittest.TestCase):
         with self.assertRaises(ValueError):server.restore_database(base64.b64encode(raw).decode(),'RESTORE')
         with self.assertRaises(ValueError):server.restore_database(base64.b64encode(b'bad').decode(),'RESTORE')
         self.close_shift()
-        with sqlite3.connect(result['file']) as db:db.execute('PRAGMA user_version=99')
+        with closing(sqlite3.connect(result['file'])) as db, db:db.execute('PRAGMA user_version=99')
         with self.assertRaises(ValueError):server.restore_database(base64.b64encode(Path(result['file']).read_bytes()).decode(),'RESTORE')
         self.assertEqual(len(self.current()['products']),1)
 
@@ -146,7 +147,7 @@ class MigrationTests(StoreFixture,unittest.TestCase):
         with server.connect() as db:
             # Recreate precisely the first-version table layout in a separate file.
             target=server.DATA/'v1.sqlite'
-            with sqlite3.connect(target) as v1:
+            with closing(sqlite3.connect(target)) as v1, v1:
                 for name in ('products','batches','settings','sales'):
                     cols={'products':'id,name,barcode,unit,price','batches':'id,product,received,qty,remaining,cost','settings':'key,value','sales':'id,created,currency,method,total,cost_egp,rates,detail'}[name]
                     definitions={'products':'id TEXT PRIMARY KEY,name TEXT,barcode TEXT UNIQUE,unit TEXT,price REAL','batches':'id INTEGER PRIMARY KEY,product TEXT,received TEXT,qty INTEGER,remaining INTEGER,cost REAL','settings':'key TEXT PRIMARY KEY,value TEXT','sales':'id TEXT PRIMARY KEY,created TEXT,currency TEXT,method TEXT,total REAL,cost_egp REAL,rates TEXT,detail TEXT'}[name]

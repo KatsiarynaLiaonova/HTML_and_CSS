@@ -1,3 +1,4 @@
+from contextlib import closing
 import tempfile,unittest,sys,json
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
@@ -65,7 +66,7 @@ class StoreTests(StoreFixture,unittest.TestCase):
         with self.assertRaises(ValueError): self.sale()
     def test_backup(self):
         with server.connect() as db:r=server.mutate(db,'/api/backup',{})
-        with server.sqlite3.connect(r['file']) as db:self.assertEqual(db.execute('SELECT COUNT(*) FROM products').fetchone()[0],1)
+        with closing(server.sqlite3.connect(r['file'])) as db, db:self.assertEqual(db.execute('SELECT COUNT(*) FROM products').fetchone()[0],1)
     def test_concurrent_stock(self):
         from concurrent.futures import ThreadPoolExecutor
         def attempt(_):

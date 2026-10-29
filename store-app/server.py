@@ -9,7 +9,7 @@ import tempfile
 import threading
 import uuid
 import webbrowser
-from contextlib import contextmanager
+from contextlib import contextmanager, closing
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -82,7 +82,7 @@ def local_backup(db, folder=None, prefix='store'):
     target = folder / (prefix + '-' + datetime.now().strftime('%Y%m%d-%H%M%S-%f') + '.sqlite')
     temp = target.with_suffix('.partial')
     try:
-        with sqlite3.connect(temp) as dest:
+        with closing(sqlite3.connect(temp)) as dest, dest:
             db.backup(dest)
         os.replace(temp, target)
     finally:
@@ -476,7 +476,7 @@ def restore_database(encoded, confirmed):
     temp = Path(temp_name)
     try:
         temp.write_bytes(raw)
-        with sqlite3.connect(temp) as source:
+        with closing(sqlite3.connect(temp)) as source, source:
             source.row_factory = sqlite3.Row
             if source.execute('PRAGMA quick_check').fetchone()[0] != 'ok' or source.execute('PRAGMA foreign_key_check').fetchone():
                 raise ValueError('Backup integrity check failed')
