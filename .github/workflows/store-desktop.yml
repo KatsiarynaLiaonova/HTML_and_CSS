@@ -14,9 +14,6 @@ jobs:
     defaults:
       run:
         working-directory: store-app
-    env:
-      PLAYWRIGHT_MODULE: ${{ runner.temp }}/ali-baba-browser/node_modules/playwright
-      PRINT_TEST_OUTPUT_DIR: ${{ runner.temp }}/ali-baba-print-pdfs
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -33,6 +30,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          export PLAYWRIGHT_MODULE="$RUNNER_TEMP/ali-baba-browser/node_modules/playwright"
+          export PRINT_TEST_OUTPUT_DIR="$RUNNER_TEMP/ali-baba-print-pdfs"
           for scenario in browser printing scanner; do
             check_dir=$(mktemp -d "$RUNNER_TEMP/ali-baba-$scenario.XXXXXX")
             STORE_DATA_DIR="$check_dir/data" python server.py --no-browser --port 8767 >"$check_dir/server.log" 2>&1 &
