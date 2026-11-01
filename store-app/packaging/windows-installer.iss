@@ -1,20 +1,24 @@
 [Setup]
+; Preserve the previous installer identity so updates retain their installation record.
 AppId=NileStore.Local
-AppName=Nile Store
-AppVersion=2.0.0
-DefaultDirName={localappdata}\Programs\Nile Store
-DefaultGroupName=Nile Store
+AppName=ALI BABA
+AppVersion=2.1.0
+DefaultDirName={localappdata}\Programs\ALI BABA
+DefaultGroupName=ALI BABA
+UsePreviousGroup=no
 PrivilegesRequired=lowest
 OutputDir=..\dist
-OutputBaseFilename=NileStore-Setup-Windows
+OutputBaseFilename=AliBaba-Setup-Windows
 Compression=lzma2
 SolidCompression=yes
-UninstallDisplayIcon={app}\NileStore.exe
+UninstallDisplayIcon={app}\AliBaba.exe
 CloseApplications=yes
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 [Files]
-Source: "..\dist\NileStore\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\dist\AliBaba\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 [Icons]
-Name: "{group}\Nile Store"; Filename: "{app}\NileStore.exe"
-Name: "{autodesktop}\Nile Store"; Filename: "{app}\NileStore.exe"
+Name: "{group}\ALI BABA"; Filename: "{app}\AliBaba.exe"
+Name: "{autodesktop}\ALI BABA"; Filename: "{app}\AliBaba.exe"
 [Run]
-Filename: "{app}\NileStore.exe"; Description: "Open Nile Store"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\AliBaba.exe"; Description: "Open ALI BABA"; Flags: nowait postinstall skipifsilent

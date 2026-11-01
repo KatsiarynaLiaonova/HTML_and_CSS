@@ -170,7 +170,7 @@ class MigrationTests(StoreFixture,unittest.TestCase):
         self.assertEqual(self.current_for_migration()['products'][0]['stock'],2)
         with server.connect() as db:
             self.assertEqual(server.sales_list(db)[0]['id'],s['id'])
-            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],2)
+            self.assertEqual(db.execute('PRAGMA user_version').fetchone()[0],server.SCHEMA)
     def close_shift_for_migration(self):
         with server.connect() as db:server.mutate(db,'/api/shift-close',{'id':1,'closing':dict.fromkeys(server.CURRENCIES,0)})
     def current_for_migration(self):

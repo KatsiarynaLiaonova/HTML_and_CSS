@@ -1,4 +1,4 @@
-name: Build Nile Store desktop
+name: Build ALI BABA desktop
 on:
   workflow_dispatch:
   push:
@@ -9,6 +9,7 @@ permissions:
   contents: read
 jobs:
   desktop:
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -22,21 +23,27 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install build tools
+        run: python -m pip install -r requirements-desktop.txt pyinstaller==6.16.0
       - name: Accounting and migration tests
         run: python -m unittest discover -s tests -v
-      - name: Install build tools
-        run: python -m pip install pyinstaller==6.16.0
+      - name: Check native desktop window from source
+        timeout-minutes: 3
+        run: python desktop.py --desktop-smoke-test
       - name: Build desktop app
         run: python -m PyInstaller packaging/NileStore.spec --noconfirm
       - name: Check Windows app runtime
+        timeout-minutes: 3
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $app = Start-Process dist/NileStore/NileStore.exe -ArgumentList '--self-test' -PassThru -Wait
+          $app = Start-Process dist/AliBaba/AliBaba.exe -ArgumentList '--desktop-smoke-test' -PassThru
+          if (-not $app.WaitForExit(90000)) { $app.Kill(); throw "App window timed out" }
           if ($app.ExitCode -ne 0) { throw "App self-test failed: $($app.ExitCode)" }
       - name: Check macOS app runtime
+        timeout-minutes: 3
         if: runner.os == 'macOS'
-        run: '"dist/Nile Store.app/Contents/MacOS/NileStore" --self-test'
+        run: '"dist/ALI BABA.app/Contents/MacOS/AliBaba" --desktop-smoke-test'
       - name: Check bundled resources
         shell: bash
         run: test -n "$(find dist -name index.html -print -quit)"
@@ -46,11 +53,11 @@ jobs:
         run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" packaging/windows-installer.iss'
       - name: Archive macOS app
         if: runner.os == 'macOS'
-        run: ditto -c -k --sequesterRsrc --keepParent "dist/Nile Store.app" "dist/NileStore-${{ runner.arch }}-macOS.zip"
+        run: ditto -c -k --sequesterRsrc --keepParent "dist/ALI BABA.app" "dist/AliBaba-${{ runner.arch }}-macOS.zip"
       - uses: actions/upload-artifact@v4
         with:
-          name: NileStore-${{ runner.os }}-${{ runner.arch }}
+          name: AliBaba-${{ runner.os }}-${{ runner.arch }}
           path: |
-            store-app/dist/NileStore-Setup-Windows.exe
-            store-app/dist/NileStore-*-macOS.zip
+            store-app/dist/AliBaba-Setup-Windows.exe
+            store-app/dist/AliBaba-*-macOS.zip
           if-no-files-found: error

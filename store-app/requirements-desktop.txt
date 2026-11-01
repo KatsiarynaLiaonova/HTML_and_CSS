@@ -1,0 +1,3 @@
+# The server and accounting tests need only Python's standard library.
+# Windows: Edge WebView2; macOS: the system WKWebView engine.
+pywebview==6.2.1

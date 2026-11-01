@@ -1,92 +1,144 @@
-"""Windowed launcher used by shortcuts and the standalone desktop bundles."""
+"""ALI BABA desktop window. The local service and database never leave this computer."""
 import json
-import sys
-import tempfile
 from pathlib import Path
 import socket
+import sys
+import tempfile
 import threading
-import tkinter as tk
-from tkinter import messagebox, filedialog
+import time
 from urllib.request import urlopen
-import webbrowser
+
 import server
 
+APP_NAME = 'ALI BABA'
 
-def main():
-    root = tk.Tk()
-    root.title('Nile Store ' + server.VERSION)
-    root.geometry('460x260')
-    root.resizable(False, False)
-    root.configure(bg='#f3f5f0')
-    def choose_folder():
-        done = threading.Event()
-        result = {'folder': ''}
-        def pick():
-            try:
-                result['folder'] = filedialog.askdirectory(parent=root, title='Backup folder / Папка копий')
-            finally:
-                done.set()
-        root.after(0, pick)
-        if not done.wait(180):
-            raise ValueError('Folder selection timed out')
-        return result['folder']
-    server.CHOOSE_FOLDER = choose_folder
-    service = None
-    stop = threading.Event()
+
+def notify(message, error=True):
+    """Keep startup errors visible in a windowed executable with no console."""
     try:
-        # Do not start a second database service when the user clicks twice.
-        with socket.socket() as probe:
-            occupied = probe.connect_ex(('127.0.0.1', 8765)) == 0
-        if occupied:
-            try:
-                with urlopen('http://127.0.0.1:8765/api/state', timeout=3) as response:
-                    current = json.load(response)
-                if current.get('version') == server.VERSION:
-                    webbrowser.open('http://127.0.0.1:8765')
-                    root.destroy()
-                    return
-            except (OSError, ValueError):
-                pass
-            raise RuntimeError('Port 8765 is in use. Close the previous Nile Store before opening this version.')
-        service = server.create_server()
-        threading.Thread(target=service.serve_forever, daemon=True).start()
-        threading.Thread(target=server.daily_backup, args=(stop,), daemon=True).start()
-    except Exception as exc:
-        messagebox.showerror('Nile Store', str(exc), parent=root)
-        if service:
-            service.server_close()
+        import tkinter as tk
+        from tkinter import messagebox
+        root = tk.Tk()
+        root.withdraw()
+        (messagebox.showerror if error else messagebox.showinfo)(APP_NAME, message, parent=root)
         root.destroy()
-        return
+    except Exception:
+        print(message, file=sys.stderr)
 
-    tk.Label(root, text='◈ NILE STORE', font=('Arial', 24, 'bold'), fg='#123d33', bg='#f3f5f0').pack(pady=(25, 12))
-    tk.Label(root, text='Local store is running / Программа работает', bg='#f3f5f0').pack()
-    tk.Button(root, text='Open store / Открыть магазин', command=lambda: webbrowser.open('http://127.0.0.1:8765')).pack(pady=16)
 
-    def close():
-        if not messagebox.askyesno('Nile Store', 'Stop the store? / Завершить работу?', parent=root):
-            return
-        stop.set()
-        service.shutdown()
-        service.server_close()
+def self_test():
+    # This checks the packaged resources and dependency, without a display or user data.
+    import webview
+    assert callable(webview.create_window)
+    with tempfile.TemporaryDirectory() as folder:
+        original = server.DATA
         try:
-            with server.connect() as db:
-                server.backup(db)
-        except OSError as exc:
-            messagebox.showwarning('Backup / Копия', str(exc), parent=root)
-        root.destroy()
-
-    tk.Button(root, text='Stop / Завершить', command=close).pack()
-    root.protocol('WM_DELETE_WINDOW', close)
-    webbrowser.open('http://127.0.0.1:8765')
-    root.mainloop()
-
-if __name__ == '__main__':
-    if '--self-test' in sys.argv:
-        with tempfile.TemporaryDirectory() as folder:
             server.DATA = Path(folder)
             server.initialize()
             assert (server.ROOT / 'static' / 'extra.js').is_file()
             with server.connect() as db:
                 assert server.snapshot(db)['version'] == server.VERSION
-    else:
-        main()
+        finally:
+            server.DATA = original
+
+
+def run(smoke_test=False):
+    import webview
+
+    service = None
+    stop = threading.Event()
+    failure = []
+    with socket.socket() as probe:
+        occupied = probe.connect_ex(('127.0.0.1', 8765)) == 0
+    if occupied:
+        raise RuntimeError(
+            'ALI BABA is already running, or port 8765 is in use. '
+            'Switch to its window or close the previous version before updating.\n\n'
+            'ALI BABA уже запущена или порт 8765 занят. Переключитесь в ее окно '
+            'или завершите предыдущую версию перед обновлением.'
+        )
+    try:
+        service = server.create_server()
+        threading.Thread(target=service.serve_forever, daemon=True).start()
+        threading.Thread(target=server.daily_backup, args=(stop,), daemon=True).start()
+        webview.settings['ALLOW_DOWNLOADS'] = True
+        window = webview.create_window(
+            APP_NAME + ' · ' + server.VERSION,
+            'http://127.0.0.1:8765', width=1280, height=840,
+            min_size=(900, 600), background_color='#f3f5f0',
+            confirm_close=not smoke_test, hidden=smoke_test,
+            localization={
+                'global.quitConfirmation': 'Close ALI BABA? / Завершить работу ALI BABA?',
+                'global.quit': 'Close / Завершить', 'global.cancel': 'Cancel / Отмена',
+            },
+        )
+
+        def choose_folder():
+            selected = window.create_file_dialog(webview.FileDialog.FOLDER)
+            return selected[0] if selected else ''
+
+        server.CHOOSE_FOLDER = choose_folder
+
+        def check_window():
+            try:
+                deadline = time.monotonic() + 30
+                while time.monotonic() < deadline:
+                    ready = window.evaluate_js(
+                        "document.title.includes('ALI BABA') && "
+                        "document.querySelector('#scan') !== null"
+                    )
+                    if ready:
+                        with urlopen('http://127.0.0.1:8765/api/state', timeout=5) as response:
+                            assert json.load(response)['version'] == server.VERSION
+                        return
+                    time.sleep(.1)
+                raise RuntimeError('The native window did not load the checkout screen')
+            except Exception as exc:
+                failure.append(exc)
+            finally:
+                window.destroy()
+
+        # Use the current OS engine; do not fall back to Internet Explorer on Windows.
+        gui = 'edgechromium' if sys.platform == 'win32' else 'cocoa' if sys.platform == 'darwin' else None
+        webview.start(
+            check_window if smoke_test else None, gui=gui,
+            private_mode=False, storage_path=str(server.DATA / 'webview'),
+        )
+        if failure:
+            raise failure[0]
+    finally:
+        stop.set()
+        server.CHOOSE_FOLDER = None
+        if service:
+            service.shutdown()
+            service.server_close()
+            # Finish any operation that was already being handled before taking the final copy.
+            with server.LOCK:
+                with server.connect() as db:
+                    server.backup(db)
+
+
+def main():
+    try:
+        if '--self-test' in sys.argv:
+            self_test()
+        elif '--desktop-smoke-test' in sys.argv:
+            with tempfile.TemporaryDirectory() as folder:
+                server.DATA = Path(folder)
+                run(smoke_test=True)
+        else:
+            run()
+        return 0
+    except Exception as exc:
+        if '--self-test' in sys.argv or '--desktop-smoke-test' in sys.argv:
+            raise
+        notify(
+            str(exc) + '\n\nFor a source installation, run Install-Mac.command or '
+            'Install-Windows.cmd again. Windows also needs Microsoft Edge WebView2 Runtime.\n'
+            'Для исходников повторите установку. На Windows необходим Microsoft Edge WebView2 Runtime.'
+        )
+        return 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

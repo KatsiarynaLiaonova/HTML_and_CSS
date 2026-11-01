@@ -1,12 +1,13 @@
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert=require('assert');
 const BASE_URL=process.env.STORE_TEST_URL || 'http://127.0.0.1:8767';
-const backupFile=require('path').join(require('os').tmpdir(),`nile-roundtrip-${process.pid}.sqlite`);
+const backupFile=require('path').join(require('os').tmpdir(),`ali-baba-roundtrip-${process.pid}.sqlite`);
 if(!['127.0.0.1','localhost'].includes(new URL(BASE_URL).hostname))throw Error('Tests require a local isolated database');
 (async()=>{
  const browser=await chromium.launch({...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{}),args:['--no-sandbox','--disable-dev-shm-usage','--proxy-bypass-list=127.0.0.1;localhost']});
  const p=await browser.newPage({acceptDownloads:true});let errors=[];p.on('pageerror',e=>errors.push(e.message));
  await p.goto(BASE_URL);await p.locator('#scan').waitFor();
+ assert.equal(await p.title(),'ALI BABA');
  const initial=await p.evaluate(async()=>await(await fetch('/api/state')).json());
  assert.equal(initial.products.length,0,'Refusing to run against existing product data');assert.equal(initial.shifts.length,0,'Use an empty test database');
  const goto=async s=>p.locator(`[data-page=${s}]`).click();
@@ -21,6 +22,34 @@ if(!['127.0.0.1','localhost'].includes(new URL(BASE_URL).hostname))throw Error('
  await goto('reports');assert((await p.locator('.stats').textContent()).includes('389,00'),'after-fee profit should be 389');
  await p.locator('[data-void]').click();await p.locator('#voidForm [name=reason]').fill('Wrong test item');await p.locator('#voidForm [name=confirmed]').check();await p.locator('#voidForm button').click();await p.locator('#operationDialog').waitFor({state:'hidden'});
  assert((await p.locator('.stats').textContent()).includes('-11,00'),'nonrefunded commission remains');assert.equal(await p.locator('[data-void]').count(),0);
+ // Return one item from a discounted multi-unit sale, then a damaged item,
+ // then the final unit. All refunds retain the original receipt discount.
+ await goto('pos');await p.locator('#scan').fill('123456');await p.locator('#scan').press('Enter');
+ await p.locator('[data-qty]').fill('3');await p.locator('[data-qty]').press('Tab');
+ await p.locator('#billType').selectOption('fixed');await p.locator('#billValue').fill('150');await p.locator('#billValue').press('Tab');
+ await p.locator('#checkout').click();await p.locator('[data-qty]').waitFor({state:'detached'});await goto('reports');
+ const returnOne=async damaged=>{
+  await p.locator('[data-return]').click();
+  await p.locator('[data-return-qty]').fill('1');
+  if(damaged)await p.locator('[data-return-stock]').uncheck();
+  await p.locator('#returnForm [name=reason]').fill(damaged?'Customer return: damaged':'Customer return: unused');
+  await p.locator('#previewReturn').click();await p.locator('#returnPreview').waitFor({state:'visible'});
+  assert((await p.locator('#returnPreview .total').textContent()).includes('450,00'),'refund must retain receipt discount');
+  assert(await p.locator('#confirmReturn').isDisabled(),'money confirmation required');
+  await p.locator('#returnConfirmed').check();await p.locator('#confirmReturn').click();await p.locator('#operationDialog').waitFor({state:'hidden'});
+ };
+ await returnOne(false);
+ let current=await p.evaluate(async()=>await(await fetch('/api/state')).json());
+ assert.equal(current.products[0].stock,3,'saleable return restores one unit');
+ assert.equal(await p.locator('[data-void]').count(),0,'a partially returned sale cannot be cancelled');
+ await returnOne(true);
+ current=await p.evaluate(async()=>await(await fetch('/api/state')).json());
+ assert.equal(current.products[0].stock,3,'damaged return does not increase saleable stock');
+ await returnOne(false);assert.equal(await p.locator('[data-return]').count(),0,'fully returned sale cannot be returned again');
+ assert.equal(await p.locator('[data-return-receipt]').count(),3,'every return has a printable receipt');
+ await p.locator('[data-return-receipt]').first().click();await p.locator('#printDialog').waitFor({state:'visible'});
+ assert((await p.locator('#printArea').textContent()).includes('450,00'));await p.locator('#closePrint').click();
+ assert((await p.locator('.stats').textContent()).includes('-139,00'),'damaged stock cost and unrefunded bank fees remain expenses');
  await goto('adjustments');await p.locator('#adjustForm [name=kind]').selectOption('writeoff');await p.locator('#adjustForm [name=qty]').fill('1');await p.locator('#adjustForm [name=reason]').fill('Damaged');await p.locator('#adjustForm button').click();await p.getByText('Damaged',{exact:true}).waitFor();
  await goto('labelsBatch');await p.locator('#selectLabels').click();await p.locator('[data-copies]').fill('2');await p.locator('#printLabels').click();assert.equal(await p.locator('.label-preview').count(),2);await p.locator('#labelsPrinted').click();await p.locator('#printDialog').waitFor({state:'hidden'});assert.equal(await p.locator('[data-copies]').count(),0);
  await goto('settings');await p.locator('#roundingForm [name=EGP]').fill('5');await p.locator('#roundingForm button').click();await p.locator('#applyChanges').click();await p.locator('#operationDialog').waitFor({state:'hidden'});
@@ -30,6 +59,6 @@ if(!['127.0.0.1','localhost'].includes(new URL(BASE_URL).hostname))throw Error('
  await p.locator('#restoreFile').setInputFiles(backupFile);await p.locator('#restoreConfirm').fill('RESTORE');await p.locator('#restoreForm button').click();await p.getByText(/Данные восстановлены/).waitFor();
  assert.equal((await p.evaluate(async()=>await(await fetch('/api/state')).json())).products.length,1);
  await p.locator('#language').selectOption('ar');for(const page of ['shifts','adjustments','labelsBatch','reports','settings']){await goto(page);assert.equal(await p.locator('html').getAttribute('dir'),'rtl');}
- await p.screenshot({path:require('path').join(require('os').tmpdir(),'nile-v2-arabic.png'),fullPage:true});await p.locator('#language').selectOption('ru');await goto('shifts');await p.screenshot({path:require('path').join(require('os').tmpdir(),'nile-v2-shifts.png'),fullPage:true});
- assert.deepEqual(errors,[]);console.log('PASS: rate preview, inventory supplier/minimum, shift, card fee, checkout, void, write-off, batch labels, rounding preview, close, backup download and restore, Arabic screens; no browser errors');await browser.close();
+ await p.screenshot({path:require('path').join(require('os').tmpdir(),'ali-baba-arabic.png'),fullPage:true});await p.locator('#language').selectOption('ru');await goto('shifts');await p.screenshot({path:require('path').join(require('os').tmpdir(),'ali-baba-shifts.png'),fullPage:true});
+ assert.deepEqual(errors,[]);console.log('PASS: ALI BABA branding, rate preview, inventory supplier/minimum, shift, card fee, checkout, void, discounted partial returns, damaged return, remaining quantities, return receipts, write-off, batch labels, rounding preview, close, backup download and restore, Arabic screens; no browser errors');await browser.close();
 })().catch(e=>{console.error(e);process.exit(1)});

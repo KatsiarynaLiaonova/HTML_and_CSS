@@ -85,6 +85,7 @@ function reportEvents() {
   for (const sale of sales) {
     result.push({...sale,event_id:sale.id,sign:1,source:sale});
     if (sale.void) result.push({...sale,event_id:sale.id+' / '+t('negative'),created:sale.void.created,sign:-1,fee:sale.void.fee_refunded?(sale.fee||0):0,source:sale,reversal:true});
+    for (const refund of sale.returns||[]) result.push({...refund,event_id:refund.id,sign:-1,fee:refund.fee_refund||0,source:sale,reversal:true,customerReturn:true});
   }
   return result.sort((a,b)=>b.created.localeCompare(a.created));
 }
@@ -99,19 +100,94 @@ converted=function(s) {
   const revenue=sign*s.total*factor,cost=sign*s.cost_egp/s.rates.EGP*s.rates[filters.display],fee=sign*(s.fee||0)*factor;
   return {revenue,cost,profit:revenue-cost,fee,afterFees:revenue-cost-fee};
 };
+function remainingReturnLines(sale) {
+  return sale.items.map((item,line)=>{
+    const summary=sale.return_lines?.find(r=>r.line===line);
+    const returned=summary?.returned_qty??(sale.returns||[]).reduce((total,r)=>total+r.items.filter(i=>i.line===line).reduce((n,i)=>n+i.qty,0),0);
+    return {...item,line,returned_qty:returned,remaining_qty:summary?.remaining_qty??Math.max(0,Math.round((item.qty-returned)*1000)/1000)};
+  });
+}
+function reportStatus(s) {
+  if (s.customerReturn) return `${t('customerReturn')}: ${esc(s.reason)}<small>${t('originalReceipt')}: ${esc(s.source.id)}</small><button class="secondary" data-return-receipt="${esc(s.id)}">${t('printHistory')}</button>`;
+  if (s.reversal) return `${t('negative')}: ${esc(s.void.reason)}`;
+  const returns=s.returns||[],canReturn=!s.void&&remainingReturnLines(s).some(i=>i.remaining_qty>0);
+  return `${s.void?`<span class="badge">${t('voided')}</span>`:''}${returns.length?`<span class="badge">${t('returns')}: ${returns.length}</span>`:''}<div class="actions"><button class="secondary" data-receipt="${esc(s.id)}">${t('printHistory')}</button>${canReturn?`<button class="secondary" data-return="${esc(s.id)}">${t('returnItems')}</button>`:''}${!s.void&&!returns.length?`<button class="secondary" data-void="${esc(s.id)}">${t('voidSale')}</button>`:''}</div>`;
+}
 renderReports=function() {
   const selected=filteredSales(),summary=selected.reduce((a,s)=>{const c=converted(s);for(const k in a)a[k]+=c[k];return a;},{revenue:0,cost:0,profit:0,fee:0,afterFees:0});
-  $('content').innerHTML=`<section class="card"><h2>${t('summary')}</h2><div class="fields">${field('from',`<input type="date" id="from" value="${filters.from}">`)}${field('to',`<input type="date" id="to" value="${filters.to}">`)}${field('currency',`<select id="filterCurrency">${currencies(filters.currency,true)}</select>`)}${field('method',`<select id="filterMethod">${opt('',t('all'),filters.method)}${['cash','card','transfer'].map(m=>opt(m,t(m),filters.method)).join('')}</select>`)}${field('display',`<select id="display">${currencies(filters.display)}</select>`)}</div><p class="muted">${t('cancelHint')}</p></section><div class="stats">${[['revenue','revenue'],['cost','costTotal'],['profit','profit'],['fee','fees'],['afterFees','afterFees']].map(([k,label])=>`<div class="stat"><small>${t(label)} · ${filters.display}</small><strong>${fmt(summary[k])}</strong></div>`).join('')}</div><section class="card"><div class="actions"><h2>${t('sales')}</h2><button id="export" class="secondary">${t('download')}</button></div>${table([t('date'),t('payment'),t('total'),t('profit')+' · '+filters.display,t('fees'),t('afterFees'),t('status')],selected.map(s=>{const c=converted(s);return tr([`${new Date(s.created).toLocaleString(lang)}<small>${esc(s.event_id)}</small>`,`${t(s.method)} / ${s.currency}`,`${fmt(s.sign*s.total)} ${s.currency}`,fmt(c.profit),fmt(c.fee),fmt(c.afterFees),s.reversal?`${t('negative')}: ${esc(s.void.reason)}`:`${s.void?`<span class="badge">${t('voided')}</span>`:''}<button class="secondary" data-receipt="${s.id}">${t('printHistory')}</button> ${!s.void?`<button class="secondary" data-void="${s.id}">${t('voidSale')}</button>`:''}`]);}))}${!selected.length?`<p class="empty">${t('noResults')}</p>`:''}</section>`;
+  $('content').innerHTML=`<section class="card"><h2>${t('summary')}</h2><div class="fields">${field('from',`<input type="date" id="from" value="${filters.from}">`)}${field('to',`<input type="date" id="to" value="${filters.to}">`)}${field('currency',`<select id="filterCurrency">${currencies(filters.currency,true)}</select>`)}${field('method',`<select id="filterMethod">${opt('',t('all'),filters.method)}${['cash','card','transfer'].map(m=>opt(m,t(m),filters.method)).join('')}</select>`)}${field('display',`<select id="display">${currencies(filters.display)}</select>`)}</div><p class="muted">${t('returnReportHint')}</p></section><div class="stats">${[['revenue','revenue'],['cost','costTotal'],['profit','profit'],['fee','fees'],['afterFees','afterFees']].map(([k,label])=>`<div class="stat"><small>${t(label)} · ${filters.display}</small><strong>${fmt(summary[k])}</strong></div>`).join('')}</div><section class="card"><div class="actions"><h2>${t('sales')}</h2><button id="export" class="secondary">${t('download')}</button></div>${table([t('date'),t('payment'),t('total'),t('profit')+' · '+filters.display,t('fees'),t('afterFees'),t('status')],selected.map(s=>{const c=converted(s);return tr([`${new Date(s.created).toLocaleString(lang)}<small>${esc(s.event_id)}</small>`,`${t(s.method)} / ${s.currency}`,`${fmt(s.sign*s.total)} ${s.currency}`,fmt(c.profit),fmt(c.fee),fmt(c.afterFees),reportStatus(s)]);}))}${!selected.length?`<p class="empty">${t('noResults')}</p>`:''}</section>`;
   for(const [id,key] of [['from','from'],['to','to'],['filterCurrency','currency'],['filterMethod','method'],['display','display']])$(id).onchange=e=>{filters[key]=e.target.value;renderReports();};
-  $('export').onclick=()=>exportCSV('sales.csv',[['ID','Date','Payment currency','Method','Amount','Report currency','Revenue','Cost','Gross profit','Fees','Profit after fees','Correction reason'],...selected.map(s=>{const c=converted(s);return [s.event_id,s.created,s.currency,s.method,s.sign*s.total,filters.display,...['revenue','cost','profit','fee','afterFees'].map(k=>round(c[k])),s.reversal?s.void.reason:''];})]);
+  $('export').onclick=()=>exportCSV('sales.csv',[['ID','Date','Payment currency','Method','Amount','Report currency','Revenue','Cost','Gross profit','Fees','Profit after fees','Correction reason','Original receipt'],...selected.map(s=>{const c=converted(s);return [s.event_id,s.created,s.currency,s.method,s.sign*s.total,filters.display,...['revenue','cost','profit','fee','afterFees'].map(k=>round(c[k])),s.customerReturn?s.reason:s.reversal?s.void.reason:'',s.reversal?s.source.id:''];})]);
   $('content').querySelectorAll('[data-receipt]').forEach(b=>b.onclick=()=>printReceipt(sales.find(s=>s.id===b.dataset.receipt)));
+  $('content').querySelectorAll('[data-return-receipt]').forEach(b=>b.onclick=()=>{
+    const event=reportEvents().find(r=>r.customerReturn&&r.id===b.dataset.returnReceipt);printReturnReceipt(event,event.source);
+  });
+  $('content').querySelectorAll('[data-return]').forEach(b=>b.onclick=()=>action(async()=>{
+    await refresh();renderReports();await openReturnDialog(sales.find(s=>s.id===b.dataset.return));
+  }));
   $('content').querySelectorAll('[data-void]').forEach(b=>b.onclick=()=>{
     if(!openShift()){notice(t('shiftRequired'),true);return;}
     const s=sales.find(s=>s.id===b.dataset.void);
     const dialog=modal(t('voidSale')+' · '+s.id,`<p>${fmt(s.total)} ${s.currency} · ${t(s.method)}</p><p class="muted">${t('cancelHint')}</p><form id="voidForm">${field('voidReason','<input name="reason" required dir="auto">')}<label class="check"><input name="confirmed" type="checkbox" required>${t('reverseConfirmed')}</label>${s.fee?`<label class="check"><input name="fee_refunded" type="checkbox">${t('feeRefunded')}</label><p class="muted">${t('cancelledFeeHint')}</p>`:''}<button>${t('confirm')}</button></form>`);
-    $('voidForm').onsubmit=e=>{e.preventDefault();action(async()=>{const f=e.target;await api('void',{id:s.id,reason:f.elements.reason.value,confirmed:f.elements.confirmed.checked,fee_refunded:!!f.elements.fee_refunded?.checked});dialog.close();await refresh();renderReports();notice(t('saved'));});};
+    $('voidForm').onsubmit=e=>{e.preventDefault();action(async()=>{const f=e.target;await api('void',{id:s.id,reason:f.elements.reason.value,confirmed:f.elements.confirmed.checked,fee_refunded:!!f.elements.fee_refunded?.checked});await refresh();renderReports();dialog.close();notice(t('saved'));});};
   });
 };
+
+function returnRequestId() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  const bytes=crypto.getRandomValues(new Uint8Array(16));
+  bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;
+  const hex=[...bytes].map(n=>n.toString(16).padStart(2,'0')).join('');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+}
+async function openReturnDialog(sale) {
+  if (!openShift()) throw Error(t('shiftRequired'));
+  if (!sale||sale.void) throw Error(t('stateChanged'));
+  const lines=remainingReturnLines(sale).filter(i=>i.remaining_qty>0);
+  if (!lines.length) throw Error(t('nothingToReturn'));
+  const feeAvailable=Math.max(0,round((sale.fee||0)-(sale.returns||[]).reduce((n,r)=>n+(r.fee_refund||0),0)));
+  const dialog=modal(t('returnItems')+' · '+sale.id,`<p class="muted">${t('returnHint')}</p><p>${t('payment')}: ${t(sale.method)} · ${sale.currency}</p><form id="returnForm"><fieldset id="returnFields">${table([t('product'),t('availableReturn'),t('returnQty'),t('restock')],lines.map(i=>tr([`<bdi>${esc(i.name)}</bdi><small>${t(i.unit)}</small>`,i.remaining_qty,`<input data-return-qty="${i.line}" type="number" min="0" max="${i.remaining_qty}" step="${i.unit==='kg'?'.001':'1'}" value="0" required aria-label="${t('returnQty')} ${esc(i.name)}">`,`<label class="check"><input data-return-stock="${i.line}" type="checkbox" checked aria-label="${t('restock')} ${esc(i.name)}">${t('canSell')}</label>`])))}<p class="muted">${t('damagedReturnHint')}</p>${field('reason','<input name="reason" required maxlength="1000" dir="auto">')}${feeAvailable?`<label>${t('feeRefundAmount')} · ${sale.currency}<input name="fee_refund" type="number" min="0" max="${feeAvailable}" step=".01" value="0" required></label><p class="muted">${t('feeReturnHint')}</p>`:''}</fieldset><p id="returnError" class="error" role="alert" hidden></p><button id="previewReturn" type="submit">${t('previewReturn')}</button><section id="returnPreview" hidden></section></form>`);
+  let prepared=null,committing=false;
+  const f=$('returnForm');
+  const fail=error=>{$('returnError').textContent=error.message;$('returnError').hidden=false;};
+  f.oninput=()=>{$('returnError').hidden=true;};
+  f.onsubmit=async e=>{
+    e.preventDefault();if(committing||prepared)return;
+    const items=lines.map(i=>({line:i.line,qty:Number(f.querySelector(`[data-return-qty="${i.line}"]`).value),restock:f.querySelector(`[data-return-stock="${i.line}"]`).checked})).filter(i=>i.qty>0);
+    $('previewReturn').disabled=true;$('returnError').hidden=true;
+    try {
+      if(!items.length)throw Error(t('selectReturnItems'));
+      const data={id:sale.id,items,fee_refund:Number(f.elements.fee_refund?.value||0)},preview=await api('return-preview',data);
+      prepared={...data,reason:f.elements.reason.value,confirmed:true,return_count:preview.return_count,request_id:returnRequestId()};
+      $('returnFields').disabled=true;$('previewReturn').hidden=true;
+      const details=preview.items.map(i=>tr([`<bdi>${esc(sale.items[i.line].name)}</bdi>`,`${i.qty} ${t(sale.items[i.line].unit)}`,`${fmt(i.total??i.refund)} ${sale.currency}`,t(i.restock?'restock':'damagedReturn')]));
+      $('returnPreview').innerHTML=`<h3>${t('refundPreview')}</h3>${table([t('product'),t('qty'),t('refundAmount'),t('stockAction')],details)}<div class="total">${t('refundAmount')}: ${fmt(preview.total)} ${sale.currency}</div><p>${t('payment')}: ${t(sale.method)} · ${sale.currency}</p><p class="muted">${t('refundManualHint')}</p><label class="check"><input id="returnConfirmed" type="checkbox">${t('refundConfirmed')}</label><div class="actions"><button id="confirmReturn" type="button" disabled>${t('recordReturn')}</button><button id="editReturn" type="button" class="secondary">${t('edit')}</button></div>`;
+      $('returnPreview').hidden=false;
+      $('returnConfirmed').onchange=()=>{$('confirmReturn').disabled=!$('returnConfirmed').checked;};
+      $('editReturn').onclick=()=>{prepared=null;$('returnFields').disabled=false;$('previewReturn').hidden=false;$('previewReturn').disabled=false;$('returnPreview').hidden=true;};
+      $('confirmReturn').onclick=async()=>{
+        if(committing||!$('returnConfirmed').checked)return;
+        committing=true;$('confirmReturn').disabled=true;$('editReturn').disabled=true;$('dismiss').disabled=true;
+        let recorded=false;
+        try {
+          await api('returns',prepared);recorded=true;await refresh();renderReports();dialog.close();notice(t('returnSaved'));
+        } catch(error) {
+          fail(Error(error.message+' '+t('returnRetryHint')));
+          if(!recorded&&error.status>=400&&error.status<500)$('editReturn').disabled=false;
+        }
+        finally {
+          committing=false;
+          if(dialog.open){$('confirmReturn').disabled=false;$('dismiss').disabled=false;}
+        }
+      };
+    } catch(error) {fail(error);$('previewReturn').disabled=false;}
+  };
+  dialog.oncancel=e=>{if(committing)e.preventDefault();};
+}
+
+function printReturnReceipt(refund,sale) {
+  showPrint(`<div class="receipt" style="width:${template.receiptWidth}mm" dir="${lang==='ar'?'rtl':'ltr'}"><h2>${esc(sale.shop_name||'ALI BABA')} · ${t('customerReturn')}</h2><p>${esc(refund.id)}<br>${new Date(refund.created).toLocaleString(lang)}<br>${t('originalReceipt')}: ${esc(sale.id)}</p>${table([t('product'),t('qty'),t('refundAmount')],refund.items.map(i=>tr([`<bdi>${esc(sale.items[i.line].name)}</bdi><small>${t(i.restock?'restock':'damagedReturn')}</small>`,`${i.qty} ${t(sale.items[i.line].unit)}`,fmt(i.total??i.refund)])))}<h3>${t('refundAmount')}: ${fmt(refund.total)} ${refund.currency}</h3><p>${t('payment')}: ${t(refund.method)}<br>${t('reason')}: ${esc(refund.reason)}</p></div>`,template.receiptWidth+6);
+}
 
 let labelJob=[];
 function labelMarkup(p) {
@@ -135,7 +211,7 @@ function printLabelJob(items) {
   let button=$('labelsPrinted');
   if(!button){button=document.createElement('button');button.id='labelsPrinted';$('printDialog').querySelector('.actions').append(button);}
   button.hidden=false;button.textContent=t('printed');
-  button.onclick=()=>action(async()=>{await api('labels-confirm',{items:labelJob});$('printDialog').close();await refresh();if(page==='labelsBatch')renderLabels();notice(t('saved'));});
+  button.onclick=()=>action(async()=>{await api('labels-confirm',{items:labelJob});await refresh();if(page==='labelsBatch')renderLabels();$('printDialog').close();notice(t('saved'));});
 }
 printLabel=function(p){printLabelJob([{p,copies:1}]);};
 let changedOnly=true;
@@ -155,11 +231,11 @@ function renderLabels() {
 async function previewChanges(data) {
   const preview=await api('preview',data);
   const dialog=modal(t('preview'),`<p class="muted">${t('roundHint')}</p>${table([t('product'),t('oldPrices'),t('newPrices')],preview.products.map(p=>tr([`<bdi>${esc(p.name)}</bdi>`,CC.map(c=>`${c} ${fmt(p.old[c])}`).join('<br>'),CC.map(c=>`${c} ${fmt(p.new[c])}`).join('<br>')])))}<button id="applyChanges">${t('apply')}</button>`);
-  $('applyChanges').onclick=()=>action(async()=>{await api('reprice',{...data,revision:preview.revision});dialog.close();await refresh();renderSettings();notice(t('saved'));});
+  $('applyChanges').onclick=()=>action(async()=>{await api('reprice',{...data,revision:preview.revision});await refresh();renderSettings();dialog.close();notice(t('saved'));});
 }
 renderSettings=function() {
   const options=state.options;
-  $('content').innerHTML=`<div class="grid"><form id="ratesForm" class="card"><h2>${t('rates')}</h2><p class="muted">${t('rateHint')}</p><div class="fields">${CC.filter(c=>c!=='USD').map(c=>`<label>1 USD → ${c}<input name="${c}" type="number" min=".000001" step="any" required value="${state.rates[c]}"></label>`).join('')}</div><button>${t('preview')}</button></form><form id="roundingForm" class="card"><h2>${t('rounding')}</h2><p class="muted">${t('roundHint')}</p><div class="fields">${CC.map(c=>`<label>${c}<input type="number" name="${c}" min=".01" max="100" step=".01" value="${options.rounding[c]}" ${c==='USD'?'readonly':''} required></label>`).join('')}</div><button>${t('preview')}</button></form></div><div class="grid"><form id="feesForm" class="card"><h2>${t('fees')}</h2><p class="muted">${t('feeHint')}</p>${['card','transfer'].map(m=>`<h3>${t(m)}</h3><div class="fields">${field('percent',`<input name="${m}_percent" type="number" min="0" max="100" step=".01" value="${options.fees[m].percent}" required>`)}${field('fixedFee',`<input name="${m}_fixed" type="number" min="0" step=".01" value="${options.fees[m].fixed}" required>`)}</div>`).join('')}<button>${t('save')}</button></form><form id="templateForm" class="card"><h2>${t('labels')}</h2>${field('shopName',`<input name="shop_name" value="${esc(options.shop_name)}" required dir="auto">`)}<div class="fields">${['width','height','receiptWidth'].map(k=>field(k,`<input name="${k}" type="number" min="10" max="200" step="any" required value="${template[k]}">`)).join('')}</div><p class="muted">${t('labelHint')}</p><button>${t('save')}</button></form></div><section class="card"><h2>${t('backup')}</h2><form id="backupFolderForm">${field('backupFolder',`<input name="backup_dir" value="${esc(options.backup_dir)}" placeholder="/Volumes/Backup/Nile" dir="ltr">`)}<p class="muted">${t('backupHint')}</p>${state.can_choose_folder?`<button type="button" id="chooseBackup" class="secondary">${t('chooseFolder')}</button>`:''}<button>${t('save')}</button></form><div class="actions"><a class="button secondary" href="/api/backup-download" download>${t('backupDownload')}</a></div><p class="muted">${t('backupTest')}</p>${state.backup_warning?`<p class="error">${t('copyWarning')}${esc(state.backup_warning)}</p>`:''}</section><form class="card" id="restoreForm"><h2>${t('restore')}</h2><p class="muted">${t('restoreHint')}</p>${field('restoreSelect','<input type="file" id="restoreFile" accept=".sqlite,.db" required>')}<input id="restoreConfirm" required pattern="RESTORE" placeholder="RESTORE" aria-label="RESTORE"><div class="actions"><button ${openShift()?'disabled':''}>${t('restore')}</button></div></form><section class="card"><h2>Nile Store · ${t('version')} ${esc(state.version)}</h2><p class="muted">${t('updateHint')}</p><p>${t('dataFolder')}: <bdi>${esc(state.data_dir)}</bdi></p></section>`;
+  $('content').innerHTML=`<div class="grid"><form id="ratesForm" class="card"><h2>${t('rates')}</h2><p class="muted">${t('rateHint')}</p><div class="fields">${CC.filter(c=>c!=='USD').map(c=>`<label>1 USD → ${c}<input name="${c}" type="number" min=".000001" step="any" required value="${state.rates[c]}"></label>`).join('')}</div><button>${t('preview')}</button></form><form id="roundingForm" class="card"><h2>${t('rounding')}</h2><p class="muted">${t('roundHint')}</p><div class="fields">${CC.map(c=>`<label>${c}<input type="number" name="${c}" min=".01" max="100" step=".01" value="${options.rounding[c]}" ${c==='USD'?'readonly':''} required></label>`).join('')}</div><button>${t('preview')}</button></form></div><div class="grid"><form id="feesForm" class="card"><h2>${t('fees')}</h2><p class="muted">${t('feeHint')}</p>${['card','transfer'].map(m=>`<h3>${t(m)}</h3><div class="fields">${field('percent',`<input name="${m}_percent" type="number" min="0" max="100" step=".01" value="${options.fees[m].percent}" required>`)}${field('fixedFee',`<input name="${m}_fixed" type="number" min="0" step=".01" value="${options.fees[m].fixed}" required>`)}</div>`).join('')}<button>${t('save')}</button></form><form id="templateForm" class="card"><h2>${t('labels')}</h2>${field('shopName',`<input name="shop_name" value="${esc(options.shop_name)}" required dir="auto">`)}<div class="fields">${['width','height','receiptWidth'].map(k=>field(k,`<input name="${k}" type="number" min="10" max="200" step="any" required value="${template[k]}">`)).join('')}</div><p class="muted">${t('labelHint')}</p><button>${t('save')}</button></form></div><section class="card"><h2>${t('backup')}</h2><form id="backupFolderForm">${field('backupFolder',`<input name="backup_dir" value="${esc(options.backup_dir)}" placeholder="/Volumes/Backup/ALI BABA" dir="ltr">`)}<p class="muted">${t('backupHint')}</p>${state.can_choose_folder?`<button type="button" id="chooseBackup" class="secondary">${t('chooseFolder')}</button>`:''}<button>${t('save')}</button></form><div class="actions"><a class="button secondary" href="/api/backup-download" download>${t('backupDownload')}</a></div><p class="muted">${t('backupTest')}</p>${state.backup_warning?`<p class="error">${t('copyWarning')}${esc(state.backup_warning)}</p>`:''}</section><form class="card" id="restoreForm"><h2>${t('restore')}</h2><p class="muted">${t('restoreHint')}</p>${field('restoreSelect','<input type="file" id="restoreFile" accept=".sqlite,.db" required>')}<input id="restoreConfirm" required pattern="RESTORE" placeholder="RESTORE" aria-label="RESTORE"><div class="actions"><button ${openShift()?'disabled':''}>${t('restore')}</button></div></form><section class="card"><h2>ALI BABA · ${t('version')} ${esc(state.version)}</h2><p class="muted">${t('updateHint')}</p><p>${t('dataFolder')}: <bdi>${esc(state.data_dir)}</bdi></p></section>`;
   $('ratesForm').onsubmit=e=>{e.preventDefault();action(()=>previewChanges({rates:formData(e.target)}));};
   $('roundingForm').onsubmit=e=>{e.preventDefault();action(()=>previewChanges({options:{rounding:formData(e.target)}}));};
   $('feesForm').onsubmit=e=>{e.preventDefault();action(async()=>{const data=formData(e.target),fees={};for(const m of ['card','transfer'])fees[m]={percent:data[m+'_percent'],fixed:data[m+'_fixed']};await api('options',{fees});await refresh();renderSettings();notice(t('saved'));});};

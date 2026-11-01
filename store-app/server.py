@@ -1,4 +1,4 @@
-"""Nile Store: local retail accounting, standard library only."""
+"""ALI BABA: local retail accounting, standard library server."""
 import argparse
 import base64
 import copy
@@ -15,8 +15,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = '2.0.0'
-SCHEMA = 2
+VERSION = '2.1.0'
+SCHEMA = 3
 ROOT = Path(__file__).parent
 DATA = Path(os.environ.get('STORE_DATA_DIR', Path.home() / '.retail-store'))
 CURRENCIES = ('USD', 'EUR', 'EGP', 'RUB')
@@ -26,7 +26,7 @@ CHOOSE_FOLDER = None
 DEFAULTS = {
     'rounding': {c: .01 for c in CURRENCIES},
     'fees': {m: {'percent': 0, 'fixed': 0} for m in ('card', 'transfer')},
-    'backup_dir': '', 'shop_name': 'NILE',
+    'backup_dir': '', 'shop_name': 'ALI BABA',
     'template': {'width': 38, 'height': 25, 'receiptWidth': 70},
 }
 
@@ -109,7 +109,7 @@ def backup(db, external=True):
 def migrate(db, safety=True):
     old_version = db.execute('PRAGMA user_version').fetchone()[0]
     if old_version > SCHEMA:
-        raise ValueError('This database needs a newer version of Nile Store')
+        raise ValueError('This database needs a newer version of ALI BABA')
     if safety and old_version < SCHEMA and db.execute("SELECT 1 FROM sqlite_master WHERE name='sales'").fetchone():
         local_backup(db, prefix='before-upgrade')
     db.executescript('''
@@ -123,6 +123,8 @@ def migrate(db, safety=True):
     CREATE TABLE IF NOT EXISTS cash_movements(id INTEGER PRIMARY KEY,shift_id INTEGER REFERENCES shifts(id),created TEXT,currency TEXT,amount REAL,reason TEXT);
     CREATE TABLE IF NOT EXISTS movements(id INTEGER PRIMARY KEY,created TEXT,product TEXT REFERENCES products(id),kind TEXT,qty INTEGER,reason TEXT,detail TEXT);
     CREATE TABLE IF NOT EXISTS label_prices(product TEXT PRIMARY KEY REFERENCES products(id),signature TEXT NOT NULL,printed TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS sale_returns(id TEXT PRIMARY KEY,sale_id TEXT NOT NULL REFERENCES sales(id),created TEXT NOT NULL,shift_id INTEGER NOT NULL REFERENCES shifts(id),request_id TEXT NOT NULL UNIQUE,request_payload TEXT NOT NULL,detail TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS returns_by_sale ON sale_returns(sale_id);
     ''')
     additions = {
         'products': {'min_stock': 'REAL NOT NULL DEFAULT 0'},
@@ -137,7 +139,12 @@ def migrate(db, safety=True):
     for key, value in {'rates': dict.fromkeys(CURRENCIES, 1), 'configured': False, 'options': DEFAULTS, 'revision': uuid.uuid4().hex}.items():
         if get_setting(db, key) is None:
             put_setting(db, key, value)
-    db.execute('PRAGMA user_version=2')
+    options = get_setting(db, 'options')
+    if old_version < 3 and options.get('shop_name') in ('NILE', 'Nile Store'):
+        options['shop_name'] = 'ALI BABA'
+        put_setting(db, 'options', options)
+        revision(db)
+    db.execute(f'PRAGMA user_version={SCHEMA}')
 
 def initialize():
     with connect() as db:
@@ -158,11 +165,16 @@ def signature(product, rates, options):
     return json.dumps([product['name'], product['barcode'], [price_for(product, c, rates, options) for c in CURRENCIES], options['template']], ensure_ascii=False)
 
 def sales_list(db):
+    returns = {}
+    for row in db.execute('SELECT sale_id,detail FROM sale_returns ORDER BY rowid'):
+        returns.setdefault(row['sale_id'], []).append(json.loads(row['detail']))
     rows = db.execute('SELECT s.detail,v.created AS voided,v.reason,v.fee_refunded FROM sales s LEFT JOIN voids v ON v.sale_id=s.id ORDER BY s.created DESC')
     result = []
     for row in rows:
         sale = json.loads(row['detail'])
         sale['void'] = {'created': row['voided'], 'reason': row['reason'], 'fee_refunded': bool(row['fee_refunded'])} if row['voided'] else None
+        sale['returns'] = returns.get(sale['id'], [])
+        sale['return_lines'] = return_lines(sale, sale['returns'])
         result.append(sale)
     return result
 
@@ -180,6 +192,10 @@ def shift_summary(db, shift):
         totals[s['currency']][s['method']] -= s['total']
         if row['fee_refunded']:
             fees[s['currency']] -= s.get('fee', 0)
+    for row in db.execute('SELECT detail FROM sale_returns WHERE shift_id=?', (shift['id'],)):
+        r = json.loads(row['detail'])
+        totals[r['currency']][r['method']] -= r['total']
+        fees[r['currency']] -= r['fee_refund']
     for c in CURRENCIES:
         expected[c] += totals[c]['cash']
     movements = [dict(r) for r in db.execute('SELECT * FROM cash_movements WHERE shift_id=? ORDER BY id', (shift['id'],))]
@@ -227,6 +243,142 @@ def discount(base, spec):
     if result > base:
         raise ValueError('Discount exceeds amount')
     return result
+
+def apportioned_cents(amount, weights):
+    """Assign a receipt's cents once, including the final rounding remainder."""
+    total = int(decimal(amount) * 100)
+    weights = [decimal(w) for w in weights]
+    denominator = sum(weights, Decimal(0))
+    if not denominator:
+        if total:
+            raise ValueError('Invalid original receipt amounts')
+        return [0] * len(weights)
+    shares = [Decimal(total) * w / denominator for w in weights]
+    result = [int(s) for s in shares]
+    order = sorted(range(len(weights)), key=lambda i: (-(shares[i] - result[i]), i))
+    for i in order[:total - sum(result)]:
+        result[i] += 1
+    return result
+
+def return_lines(sale, returns):
+    totals = apportioned_cents(sale['total'], [line['net'] for line in sale['items']])
+    result = []
+    for index, line in enumerate(sale['items']):
+        bought = quantity(line['qty'], line['unit'])
+        returned = sum(quantity(item['qty'], line['unit']) for event in returns for item in event['items'] if item['line'] == index)
+        refunded = sum((decimal(item['refund']) for event in returns for item in event['items'] if item['line'] == index), Decimal(0))
+        result.append({'line': index, 'qty': bought / 1000, 'returned_qty': returned / 1000,
+                       'remaining_qty': (bought - returned) / 1000, 'refund_total': totals[index] / 100,
+                       'refunded': money(refunded), 'refund_remaining': money(decimal(totals[index]) / 100 - refunded)})
+    return result
+
+def fifo_slice(line, start, count):
+    """Select units from the *original* sale, never from current stock/prices."""
+    result = []
+    left = count
+    for allocation in line['fifo']:
+        size = quantity(allocation['qty'], line['unit'])
+        skipped = min(start, size)
+        start -= skipped
+        take = min(size - skipped, left)
+        if take:
+            result.append({'batch': allocation['batch'], 'qty': take / 1000, 'cost_egp': allocation['cost_egp']})
+            left -= take
+        if not left:
+            return result
+    if left:
+        raise ValueError('Original receipt has incomplete batch allocations')
+    return result
+
+def allocation_cost(allocations):
+    return sum((decimal(a['qty']) * decimal(a['cost_egp']) for a in allocations), Decimal(0))
+
+def return_preview(db, data):
+    shift = active_shift(db)
+    row = db.execute('SELECT detail FROM sales WHERE id=?', (data['id'],)).fetchone()
+    if not row:
+        raise ValueError('Sale not found')
+    sale = json.loads(row['detail'])
+    if db.execute('SELECT 1 FROM voids WHERE sale_id=?', (sale['id'],)).fetchone():
+        raise ValueError('Cannot return a cancelled sale')
+    previous = [json.loads(r['detail']) for r in db.execute('SELECT detail FROM sale_returns WHERE sale_id=? ORDER BY rowid', (sale['id'],))]
+    remaining = return_lines(sale, previous)
+    selected = data.get('items')
+    if not isinstance(selected, list) or not selected:
+        raise ValueError('Select at least one item to return')
+    fee = decimal(data.get('fee_refund', 0))
+    fee_remaining = decimal(sale.get('fee', 0)) - sum((decimal(r['fee_refund']) for r in previous), Decimal(0))
+    if fee < 0 or fee * 100 != (fee * 100).to_integral_value() or fee > fee_remaining:
+        raise ValueError('Fee refund must not exceed the remaining original commission')
+    line_costs = [allocation_cost(line['fifo']) for line in sale['items']]
+    cost_cents = apportioned_cents(sale['cost_egp'], line_costs)
+    items, seen = [], set()
+    for choice in selected:
+        index = choice['line']
+        if type(index) is not int or index < 0 or index >= len(sale['items']) or index in seen:
+            raise ValueError('Select each original receipt line only once')
+        seen.add(index)
+        line, available = sale['items'][index], remaining[index]
+        count = quantity(choice['qty'], line['unit'])
+        before = quantity(available['returned_qty'], line['unit'], zero=True)
+        bought = quantity(line['qty'], line['unit'])
+        if before + count > bought:
+            raise ValueError('Return exceeds the quantity still available on this receipt')
+        restock = choice.get('restock', True)
+        if type(restock) is not bool:
+            raise ValueError('Choose whether the returned item can be restocked')
+        total_cents = int(decimal(available['refund_total']) * 100)
+        def refund_at(qty):
+            return int((decimal(total_cents) * qty / bought).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+        allocations = fifo_slice(line, before, count)
+        def cost_at(qty):
+            if not qty or not line_costs[index]:
+                return 0
+            raw = allocation_cost(fifo_slice(line, 0, qty))
+            return int((decimal(cost_cents[index]) * raw / line_costs[index]).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+        original_cost = (cost_at(before + count) - cost_at(before)) / 100
+        items.append({'line': index, 'product': line['id'], 'name': line['name'], 'unit': line['unit'], 'qty': count / 1000,
+                      'restock': restock, 'refund': (refund_at(before + count) - refund_at(before)) / 100,
+                      'cost_egp': original_cost if restock else 0,
+                      'loss_cost_egp': 0 if restock else original_cost, 'fifo': allocations})
+    return {'sale_id': sale['id'], 'currency': sale['currency'], 'method': sale['method'],
+            'rates': sale['rates'], 'shop_name': sale.get('shop_name', 'ALI BABA'),
+            'items': items, 'total': money(sum(decimal(i['refund']) for i in items)),
+            'cost_egp': money(sum(decimal(i['cost_egp']) for i in items)),
+            'loss_cost_egp': money(sum(decimal(i['loss_cost_egp']) for i in items)),
+            'fee_refund': money(fee), 'fee_remaining': money(fee_remaining),
+            'return_count': len(previous), 'shift_id': shift['id']}
+
+def customer_return(db, data):
+    request_id = data.get('request_id')
+    if not isinstance(request_id, str) or not request_id.strip() or len(request_id) > 100:
+        raise ValueError('A unique return request ID is required')
+    payload = json.dumps({k: data.get(k) for k in ('id', 'items', 'reason', 'confirmed', 'fee_refund', 'return_count')}, sort_keys=True, allow_nan=False)
+    existing = db.execute('SELECT request_payload,detail FROM sale_returns WHERE request_id=?', (request_id,)).fetchone()
+    if existing:
+        if existing['request_payload'] != payload:
+            raise ValueError('This return request ID was already used for a different operation')
+        return json.loads(existing['detail'])
+    reason = data.get('reason')
+    if not isinstance(reason, str) or not reason.strip() or data.get('confirmed') is not True:
+        raise ValueError('Confirm the money was returned and provide a reason')
+    event = return_preview(db, data)
+    if type(data.get('return_count')) is not int or data['return_count'] != event['return_count']:
+        raise ValueError('Returns changed. Preview this return again')
+    event.update(id=uuid.uuid4().hex[:12].upper(), created=now(), reason=reason.strip(), request_id=request_id)
+    for item in event['items']:
+        product = db.execute('SELECT id FROM products WHERE id=?', (item['product'],)).fetchone()
+        if not product:
+            raise ValueError('Original product not found')
+        if item['restock']:
+            for allocation in item['fifo']:
+                db.execute('UPDATE batches SET remaining=remaining+? WHERE id=?', (quantity(allocation['qty'], item['unit']), allocation['batch']))
+        record_movement(db, product['id'], 'return' if item['restock'] else 'return-damaged',
+                        quantity(item['qty'], item['unit']) if item['restock'] else 0,
+                        event['reason'] + ' / ' + event['sale_id'] + ' / ' + event['id'], item['fifo'])
+    db.execute('INSERT INTO sale_returns VALUES (?,?,?,?,?,?,?)',
+               (event['id'], event['sale_id'], event['created'], event['shift_id'], request_id, payload, json.dumps(event, ensure_ascii=False)))
+    return event
 
 def consume(db, product, qty):
     left, allocations = qty, []
@@ -345,9 +497,15 @@ def mutate(db, path, data):
         return checkout(db, data)
     if path == '/api/preview':
         return preview(db, data)
+    if path == '/api/return-preview':
+        return return_preview(db, data)
     if path == '/api/backup':
         return backup(db)
     db.execute('BEGIN IMMEDIATE')
+    if path == '/api/returns':
+        result = customer_return(db, data)
+        db.commit()
+        return result
     if path in ('/api/products', '/api/product-update'):
         name = data['name'].strip()
         barcode = data.get('barcode', '').strip().upper()
@@ -425,6 +583,8 @@ def mutate(db, path, data):
         s = json.loads(row['detail'])
         if db.execute('SELECT 1 FROM voids WHERE sale_id=?', (s['id'],)).fetchone():
             raise ValueError('Sale already cancelled')
+        if db.execute('SELECT 1 FROM sale_returns WHERE sale_id=?', (s['id'],)).fetchone():
+            raise ValueError('This receipt has customer returns. Return the remaining items instead of cancelling it')
         for line in s['items']:
             for a in line['fifo']:
                 db.execute('UPDATE batches SET remaining=remaining+? WHERE id=?', (quantity(a['qty'], line['unit']), a['batch']))
@@ -588,7 +748,7 @@ def main():
     server = create_server(args.port)
     stop = threading.Event()
     threading.Thread(target=daily_backup, args=(stop,), daemon=True).start()
-    print(f'Nile Store {VERSION}: http://127.0.0.1:{server.server_port} | Data: {DATA}', flush=True)
+    print(f'ALI BABA {VERSION}: http://127.0.0.1:{server.server_port} | Data: {DATA}', flush=True)
     if not args.no_browser:
         threading.Timer(.5, lambda: webbrowser.open(f'http://127.0.0.1:{server.server_port}')).start()
     try:
