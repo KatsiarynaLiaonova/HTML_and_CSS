@@ -8,6 +8,60 @@ on:
 permissions:
   contents: read
 jobs:
+  browser-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: store-app
+    env:
+      PLAYWRIGHT_MODULE: ${{ runner.temp }}/ali-baba-browser/node_modules/playwright
+      PRINT_TEST_OUTPUT_DIR: ${{ runner.temp }}/ali-baba-print-pdfs
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser test tools outside the checkout
+        run: |
+          npm install --prefix "$RUNNER_TEMP/ali-baba-browser" --no-save --package-lock=false playwright@1.62.1
+          "$RUNNER_TEMP/ali-baba-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Check checkout, label PDFs and barcode scanning
+        shell: bash
+        run: |
+          set -euo pipefail
+          for scenario in browser printing scanner; do
+            check_dir=$(mktemp -d "$RUNNER_TEMP/ali-baba-$scenario.XXXXXX")
+            STORE_DATA_DIR="$check_dir/data" python server.py --no-browser --port 8767 >"$check_dir/server.log" 2>&1 &
+            service_pid=$!
+            trap 'kill "$service_pid" 2>/dev/null || true' EXIT
+            python - <<'PY'
+          import time
+          from urllib.request import urlopen
+          for attempt in range(100):
+              try:
+                  with urlopen('http://127.0.0.1:8767/api/state', timeout=1) as response:
+                      assert response.status == 200
+                  break
+              except OSError:
+                  time.sleep(.1)
+          else:
+              raise RuntimeError('Isolated test server did not become ready')
+          PY
+            node "tests/$scenario.cjs"
+            kill "$service_pid"
+            wait "$service_pid" || true
+            trap - EXIT
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Label-print-PDF-checks
+          path: ${{ runner.temp }}/ali-baba-print-pdfs/*.pdf
+          if-no-files-found: ignore
   desktop:
     timeout-minutes: 25
     strategy:

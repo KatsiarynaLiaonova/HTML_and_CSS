@@ -15,7 +15,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-VERSION = '2.1.0'
+VERSION = '2.1.1'
 SCHEMA = 3
 ROOT = Path(__file__).parent
 DATA = Path(os.environ.get('STORE_DATA_DIR', Path.home() / '.retail-store'))
@@ -27,7 +27,7 @@ DEFAULTS = {
     'rounding': {c: .01 for c in CURRENCIES},
     'fees': {m: {'percent': 0, 'fixed': 0} for m in ('card', 'transfer')},
     'backup_dir': '', 'shop_name': 'ALI BABA',
-    'template': {'width': 38, 'height': 25, 'receiptWidth': 70},
+    'template': {'width': 38, 'height': 25, 'receiptWidth': 70, 'labelRotation': 0},
 }
 
 def now():
@@ -144,6 +144,9 @@ def migrate(db, safety=True):
         options['shop_name'] = 'ALI BABA'
         put_setting(db, 'options', options)
         revision(db)
+    if 'labelRotation' not in options['template']:
+        options['template']['labelRotation'] = 0
+        put_setting(db, 'options', options)
     db.execute(f'PRAGMA user_version={SCHEMA}')
 
 def initialize():
@@ -162,7 +165,8 @@ def price_for(product, currency, rates, options):
     return money((value / step).quantize(Decimal('1'), rounding=ROUND_HALF_UP) * step)
 
 def signature(product, rates, options):
-    return json.dumps([product['name'], product['barcode'], [price_for(product, c, rates, options) for c in CURRENCIES], options['template']], ensure_ascii=False)
+    layout = {k: v for k, v in options['template'].items() if k != 'labelRotation'}
+    return json.dumps([product['name'], product['barcode'], [price_for(product, c, rates, options) for c in CURRENCIES], layout], ensure_ascii=False)
 
 def sales_list(db):
     returns = {}
@@ -477,6 +481,13 @@ def checked_options(data, current):
         template = {k: positive(data['template'][k]) for k in ('width', 'height', 'receiptWidth')}
         if any(v < 10 or v > 200 for v in template.values()):
             raise ValueError('Paper dimensions must be 10 to 200 mm')
+        for key, value in template.items():
+            if decimal(value) == decimal(current['template'][key]):
+                template[key] = current['template'][key]
+        rotation = data['template'].get('labelRotation', current['template'].get('labelRotation', 0))
+        if isinstance(rotation, bool) or decimal(rotation) not in (0, 90, 180, 270):
+            raise ValueError('Label print rotation must be 0, 90, 180 or 270 degrees')
+        template['labelRotation'] = int(decimal(rotation))
         result['template'] = template
     return result
 
@@ -694,7 +705,7 @@ class Handler(BaseHTTPRequestHandler):
                     with connect() as db:
                         result = backup(db)
                     self.reply(200, Path(result['file']).read_bytes(), 'application/octet-stream', Path(result['file']).name)
-                elif self.path in ('/', '/app.js', '/style.css', '/extra.js', '/translations.js'):
+                elif self.path in ('/', '/app.js', '/style.css', '/extra.js', '/translations.js', '/scanner.js'):
                     name = 'index.html' if self.path == '/' else self.path[1:]
                     kind = 'text/html' if name.endswith('.html') else 'text/css' if name.endswith('.css') else 'text/javascript'
                     self.reply(200, (ROOT / 'static' / name).read_bytes(), kind + '; charset=utf-8')

@@ -13,4 +13,4 @@ archive = PYZ(analysis.pure)
 exe = EXE(archive, analysis.scripts, [], exclude_binaries=True, name='AliBaba', debug=False, bootloader_ignore_signals=False, strip=False, upx=False, console=False)
 collection = COLLECT(exe, analysis.binaries, analysis.datas, strip=False, upx=False, name='AliBaba')
 if is_darwin:
-    app = BUNDLE(collection, name='ALI BABA.app', bundle_identifier='local.nilestore.desktop', info_plist={'CFBundleName': 'ALI BABA', 'CFBundleDisplayName': 'ALI BABA', 'CFBundleShortVersionString': '2.1.0', 'CFBundleVersion': '2.1.0', 'NSHighResolutionCapable': True, 'LSApplicationCategoryType': 'public.app-category.business'})
+    app = BUNDLE(collection, name='ALI BABA.app', bundle_identifier='local.nilestore.desktop', info_plist={'CFBundleName': 'ALI BABA', 'CFBundleDisplayName': 'ALI BABA', 'CFBundleShortVersionString': '2.1.1', 'CFBundleVersion': '2.1.1', 'NSHighResolutionCapable': True, 'LSApplicationCategoryType': 'public.app-category.business'})

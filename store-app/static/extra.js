@@ -190,24 +190,45 @@ function printReturnReceipt(refund,sale) {
 }
 
 let labelJob=[];
-function labelMarkup(p) {
-  return `<div class="label-preview" style="width:${template.width}mm;height:${template.height}mm;padding:1.5mm"><bdi class="name">${esc(p.name)}</bdi><div class="prices" dir="ltr">${CC.map(c=>`<span>${c} ${fmt(p.prices[c])}</span>`).join('')}</div>${barcodeSVG(p.barcode)}<span class="code">${esc(p.barcode)}</span></div>`;
+function labelGeometry(settings=template) {
+  const width=Number(settings.width),height=Number(settings.height),rotation=Number(settings.labelRotation??0);
+  if(!Number.isFinite(width)||!Number.isFinite(height)||width<10||width>200||height<10||height>200||![0,90,180,270].includes(rotation))throw Error(t('invalid'));
+  const quarterTurn=rotation===90||rotation===270;
+  const transforms={0:'none',90:`translate(${height}mm,0) rotate(90deg)`,180:`translate(${width}mm,${height}mm) rotate(180deg)`,270:`translate(0,${width}mm) rotate(270deg)`};
+  return {width,height,rotation,pageWidth:quarterTurn?height:width,pageHeight:quarterTurn?width:height,transform:transforms[rotation]};
+}
+function labelSheet(content,settings=template,extraClass='') {
+  const g=labelGeometry(settings);
+  return `<div class="label-sheet" dir="ltr" data-label-rotation="${g.rotation}" style="width:${g.pageWidth}mm;height:${g.pageHeight}mm"><div class="label-preview ${extraClass}" style="width:${g.width}mm;height:${g.height}mm;padding:1.5mm;transform:${g.transform}">${content}</div></div>`;
+}
+function labelMarkup(p,settings=template) {
+  return labelSheet(`<bdi class="name">${esc(p.name)}</bdi><div class="prices" dir="ltr">${CC.map(c=>`<span>${c} ${fmt(p.prices[c])}</span>`).join('')}</div>${barcodeSVG(p.barcode)}<span class="code">${esc(p.barcode)}</span>`,settings);
 }
 const printBase=showPrint;
 showPrint=function(html,width,height) {
   printBase(html,width,height);
+  labelJob=[];
+  document.body.classList.toggle('printing-labels',!!height);
+  $('printArea').classList.toggle('labels-print',!!height);
   const pageHeight=height||Math.ceil($('printArea').scrollHeight*25.4/96)+8;
-  $('pageStyle').textContent=`@media print{@page{size:${width}mm ${pageHeight}mm;margin:${height?'0':'3mm'}}`;
+  const labelRules=height?`html{background:#fff}body.printing-labels{direction:ltr;min-height:0;width:${width}mm;background:#fff}body.printing-labels #printDialog,body.printing-labels #printArea{width:${width}mm;margin:0;padding:0}body.printing-labels #printDialog{border-radius:0;overflow:visible;background:#fff}`:'';
+  $('pageStyle').textContent=`@media print{@page{size:${width}mm ${pageHeight}mm;margin:${height?'0':'3mm'}}${labelRules}}`;
   const button=$('labelsPrinted');if(button)button.hidden=true;
 };
+function printTestLabel(settings=template) {
+  const g=labelGeometry(settings);
+  const content=`<strong class="calibration-top">${t('labelTestTop')}</strong><span class="calibration-left">${t('labelTestLeft')}</span><span class="calibration-right">${t('labelTestRight')}</span><span class="calibration-center">ALI BABA<br>${g.width} × ${g.height} mm</span><strong class="calibration-bottom">${t('labelTestBottom')}</strong>`;
+  showPrint(labelSheet(content,settings,'label-calibration'),g.pageWidth,g.pageHeight);
+}
 function printLabelJob(items) {
   if(!state.configured)throw Error(t('ratesRequired'));
   if(!items.length)throw Error(t('noSelection'));
   const count=items.reduce((n,i)=>n+i.copies,0);
   if(count>1000)throw Error(t('maxLabels'));
-  labelJob=items.map(i=>({id:i.p.id,signature:i.p.signature}));
+  const g=labelGeometry();
   if(items.some(i=>i.p.barcode.length>10)&&template.width<50)notice(t('enlarge'),true);
-  showPrint(items.map(i=>Array.from({length:i.copies},()=>labelMarkup(i.p)).join('')).join(''),template.width,template.height);
+  showPrint(items.map(i=>Array.from({length:i.copies},()=>labelMarkup(i.p)).join('')).join(''),g.pageWidth,g.pageHeight);
+  labelJob=items.map(i=>({id:i.p.id,signature:i.p.signature}));
   let button=$('labelsPrinted');
   if(!button){button=document.createElement('button');button.id='labelsPrinted';$('printDialog').querySelector('.actions').append(button);}
   button.hidden=false;button.textContent=t('printed');
@@ -235,11 +256,12 @@ async function previewChanges(data) {
 }
 renderSettings=function() {
   const options=state.options;
-  $('content').innerHTML=`<div class="grid"><form id="ratesForm" class="card"><h2>${t('rates')}</h2><p class="muted">${t('rateHint')}</p><div class="fields">${CC.filter(c=>c!=='USD').map(c=>`<label>1 USD → ${c}<input name="${c}" type="number" min=".000001" step="any" required value="${state.rates[c]}"></label>`).join('')}</div><button>${t('preview')}</button></form><form id="roundingForm" class="card"><h2>${t('rounding')}</h2><p class="muted">${t('roundHint')}</p><div class="fields">${CC.map(c=>`<label>${c}<input type="number" name="${c}" min=".01" max="100" step=".01" value="${options.rounding[c]}" ${c==='USD'?'readonly':''} required></label>`).join('')}</div><button>${t('preview')}</button></form></div><div class="grid"><form id="feesForm" class="card"><h2>${t('fees')}</h2><p class="muted">${t('feeHint')}</p>${['card','transfer'].map(m=>`<h3>${t(m)}</h3><div class="fields">${field('percent',`<input name="${m}_percent" type="number" min="0" max="100" step=".01" value="${options.fees[m].percent}" required>`)}${field('fixedFee',`<input name="${m}_fixed" type="number" min="0" step=".01" value="${options.fees[m].fixed}" required>`)}</div>`).join('')}<button>${t('save')}</button></form><form id="templateForm" class="card"><h2>${t('labels')}</h2>${field('shopName',`<input name="shop_name" value="${esc(options.shop_name)}" required dir="auto">`)}<div class="fields">${['width','height','receiptWidth'].map(k=>field(k,`<input name="${k}" type="number" min="10" max="200" step="any" required value="${template[k]}">`)).join('')}</div><p class="muted">${t('labelHint')}</p><button>${t('save')}</button></form></div><section class="card"><h2>${t('backup')}</h2><form id="backupFolderForm">${field('backupFolder',`<input name="backup_dir" value="${esc(options.backup_dir)}" placeholder="/Volumes/Backup/ALI BABA" dir="ltr">`)}<p class="muted">${t('backupHint')}</p>${state.can_choose_folder?`<button type="button" id="chooseBackup" class="secondary">${t('chooseFolder')}</button>`:''}<button>${t('save')}</button></form><div class="actions"><a class="button secondary" href="/api/backup-download" download>${t('backupDownload')}</a></div><p class="muted">${t('backupTest')}</p>${state.backup_warning?`<p class="error">${t('copyWarning')}${esc(state.backup_warning)}</p>`:''}</section><form class="card" id="restoreForm"><h2>${t('restore')}</h2><p class="muted">${t('restoreHint')}</p>${field('restoreSelect','<input type="file" id="restoreFile" accept=".sqlite,.db" required>')}<input id="restoreConfirm" required pattern="RESTORE" placeholder="RESTORE" aria-label="RESTORE"><div class="actions"><button ${openShift()?'disabled':''}>${t('restore')}</button></div></form><section class="card"><h2>ALI BABA · ${t('version')} ${esc(state.version)}</h2><p class="muted">${t('updateHint')}</p><p>${t('dataFolder')}: <bdi>${esc(state.data_dir)}</bdi></p></section>`;
+  $('content').innerHTML=`<div class="grid"><form id="ratesForm" class="card"><h2>${t('rates')}</h2><p class="muted">${t('rateHint')}</p><div class="fields">${CC.filter(c=>c!=='USD').map(c=>`<label>1 USD → ${c}<input name="${c}" type="number" min=".000001" step="any" required value="${state.rates[c]}"></label>`).join('')}</div><button>${t('preview')}</button></form><form id="roundingForm" class="card"><h2>${t('rounding')}</h2><p class="muted">${t('roundHint')}</p><div class="fields">${CC.map(c=>`<label>${c}<input type="number" name="${c}" min=".01" max="100" step=".01" value="${options.rounding[c]}" ${c==='USD'?'readonly':''} required></label>`).join('')}</div><button>${t('preview')}</button></form></div><div class="grid"><form id="feesForm" class="card"><h2>${t('fees')}</h2><p class="muted">${t('feeHint')}</p>${['card','transfer'].map(m=>`<h3>${t(m)}</h3><div class="fields">${field('percent',`<input name="${m}_percent" type="number" min="0" max="100" step=".01" value="${options.fees[m].percent}" required>`)}${field('fixedFee',`<input name="${m}_fixed" type="number" min="0" step=".01" value="${options.fees[m].fixed}" required>`)}</div>`).join('')}<button>${t('save')}</button></form><form id="templateForm" class="card"><h2>${t('labels')}</h2>${field('shopName',`<input name="shop_name" value="${esc(options.shop_name)}" required dir="auto">`)}<div class="fields">${['width','height','receiptWidth'].map(k=>field(k==='width'?'labelWidth':k==='height'?'labelHeight':k,`<input name="${k}" type="number" min="10" max="200" step="any" required value="${template[k]}">`)).join('')}</div><label>${t('labelRotation')}<select id="labelRotation" name="labelRotation">${[['0','rotationNone'],['270','rotationLeft'],['90','rotationRight'],['180','rotationHalf']].map(([value,key])=>opt(value,t(key),String(template.labelRotation??0))).join('')}</select></label><p class="muted">${t('labelAxesHint')} ${t('labelRotationHint')}</p><p class="muted">${t('labelHint')}</p><div class="actions"><button>${t('save')}</button><button type="button" id="testLabel" class="secondary">${t('testLabel')}</button></div><p class="muted">${t('testLabelHint')}</p></form></div><section class="card"><h2>${t('backup')}</h2><form id="backupFolderForm">${field('backupFolder',`<input name="backup_dir" value="${esc(options.backup_dir)}" placeholder="/Volumes/Backup/ALI BABA" dir="ltr">`)}<p class="muted">${t('backupHint')}</p>${state.can_choose_folder?`<button type="button" id="chooseBackup" class="secondary">${t('chooseFolder')}</button>`:''}<button>${t('save')}</button></form><div class="actions"><a class="button secondary" href="/api/backup-download" download>${t('backupDownload')}</a></div><p class="muted">${t('backupTest')}</p>${state.backup_warning?`<p class="error">${t('copyWarning')}${esc(state.backup_warning)}</p>`:''}</section><form class="card" id="restoreForm"><h2>${t('restore')}</h2><p class="muted">${t('restoreHint')}</p>${field('restoreSelect','<input type="file" id="restoreFile" accept=".sqlite,.db" required>')}<input id="restoreConfirm" required pattern="RESTORE" placeholder="RESTORE" aria-label="RESTORE"><div class="actions"><button ${openShift()?'disabled':''}>${t('restore')}</button></div></form><section class="card"><h2>ALI BABA · ${t('version')} ${esc(state.version)}</h2><p class="muted">${t('updateHint')}</p><p>${t('dataFolder')}: <bdi>${esc(state.data_dir)}</bdi></p></section>`;
   $('ratesForm').onsubmit=e=>{e.preventDefault();action(()=>previewChanges({rates:formData(e.target)}));};
   $('roundingForm').onsubmit=e=>{e.preventDefault();action(()=>previewChanges({options:{rounding:formData(e.target)}}));};
   $('feesForm').onsubmit=e=>{e.preventDefault();action(async()=>{const data=formData(e.target),fees={};for(const m of ['card','transfer'])fees[m]={percent:data[m+'_percent'],fixed:data[m+'_fixed']};await api('options',{fees});await refresh();renderSettings();notice(t('saved'));});};
-  $('templateForm').onsubmit=e=>{e.preventDefault();action(async()=>{const data=formData(e.target);await api('options',{shop_name:data.shop_name,template:Object.fromEntries(['width','height','receiptWidth'].map(k=>[k,data[k]]))});await refresh();renderSettings();notice(t('saved'));});};
+  $('templateForm').onsubmit=e=>{e.preventDefault();action(async()=>{const data=formData(e.target);await api('options',{shop_name:data.shop_name,template:{...Object.fromEntries(['width','height','receiptWidth'].map(k=>[k,data[k]])),labelRotation:Number(data.labelRotation)}});await refresh();renderSettings();notice(t('saved'));});};
+  $('testLabel').onclick=()=>action(async()=>{const f=$('templateForm'),settings={...template,width:Number(f.elements.width.value),height:Number(f.elements.height.value),labelRotation:Number(f.elements.labelRotation.value)};printTestLabel(settings);});
   if($('chooseBackup'))$('chooseBackup').onclick=()=>action(async()=>{const r=await api('choose-backup-folder',{});if(r.folder)$('backupFolderForm').elements.backup_dir.value=r.folder;});
   $('backupFolderForm').onsubmit=e=>{e.preventDefault();action(async()=>{await api('options',formData(e.target));const result=await api('backup',{});await refresh();renderSettings();notice(t('backupSaved')+result.file);if(result.warning)notice(t('copyWarning')+result.warning,true);});};
   $('restoreForm').onsubmit=e=>{e.preventDefault();action(async()=>{

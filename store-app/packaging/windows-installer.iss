@@ -2,7 +2,7 @@
 ; Preserve the previous installer identity so updates retain their installation record.
 AppId=NileStore.Local
 AppName=ALI BABA
-AppVersion=2.1.0
+AppVersion=2.1.1
 DefaultDirName={localappdata}\Programs\ALI BABA
 DefaultGroupName=ALI BABA
 UsePreviousGroup=no
