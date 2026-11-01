@@ -67,7 +67,7 @@
     productForm.querySelector('button:not([type])').type = 'submit';
     const previousProduct = productSelect.value;
     productSelect.insertAdjacentHTML('afterbegin', `<option value="">${t('choose')}</option>`);
-    productSelect.value = previousProduct;
+    productSelect.value = pendingReceiptBarcode ? '' : previousProduct;
     receiving.querySelector('h2').insertAdjacentHTML('afterend', `<label>${t('receivingScan')}<input id="batchScan" type="text" maxlength="40" autocomplete="off" spellcheck="false" dir="ltr" aria-describedby="batchScanHint batchScanStatus"></label><button id="batchScanLookup" class="secondary" type="button">${t('findScannedProduct')}</button><p id="batchScanHint" class="muted">${t('receivingScanHint')}</p><p id="batchScanStatus" role="status" aria-live="polite"></p><button id="batchScanCreate" class="secondary" type="button" hidden>${t('scanCreate')}</button>`);
     const scan = $('batchScan'), status = $('batchScanStatus'), create = $('batchScanCreate');
     let unknownCode = '';
@@ -78,6 +78,7 @@
       unknownCode = '';
     };
     const selected = product => {
+      pendingReceiptBarcode = null;
       productSelect.value = product.id;
       scan.value = '';
       resetStatus();
@@ -87,6 +88,7 @@
     };
     const lookup = () => {
       const code = codeOf(scan.value);
+      pendingReceiptBarcode = null;
       scan.value = code;
       resetStatus();
       productSelect.value = '';
@@ -106,12 +108,12 @@
       status.className = 'error';
       create.hidden = false;
     };
-    scan.oninput = () => { productSelect.value = ''; resetStatus(); };
+    scan.oninput = () => { pendingReceiptBarcode = null; productSelect.value = ''; resetStatus(); };
     scan.onkeydown = event => {
       if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); lookup(); }
     };
     $('batchScanLookup').onclick = lookup;
-    productSelect.addEventListener('change', () => { scan.value = ''; resetStatus(); });
+    productSelect.addEventListener('change', () => { pendingReceiptBarcode = null; scan.value = ''; resetStatus(); });
     create.onclick = () => {
       if (!validCode(unknownCode)) return;
       const code = unknownCode;

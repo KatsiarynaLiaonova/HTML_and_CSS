@@ -32,6 +32,7 @@ jobs:
           set -euo pipefail
           export PLAYWRIGHT_MODULE="$RUNNER_TEMP/ali-baba-browser/node_modules/playwright"
           export PRINT_TEST_OUTPUT_DIR="$RUNNER_TEMP/ali-baba-print-pdfs"
+          export STORE_TEST_URL=http://127.0.0.1:8767
           for scenario in browser printing scanner; do
             check_dir=$(mktemp -d "$RUNNER_TEMP/ali-baba-$scenario.XXXXXX")
             STORE_DATA_DIR="$check_dir/data" python server.py --no-browser --port 8767 >"$check_dir/server.log" 2>&1 &
@@ -50,7 +51,19 @@ jobs:
           else:
               raise RuntimeError('Isolated test server did not become ready')
           PY
-            node "tests/$scenario.cjs"
+            if node "tests/$scenario.cjs" >"$check_dir/result.log" 2>&1; then
+              cat "$check_dir/result.log"
+            else
+              check_status=$?
+              cat "$check_dir/result.log"
+              {
+                echo "### Browser check: $scenario"
+                echo '```text'
+                cat "$check_dir/result.log"
+                echo '```'
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit "$check_status"
+            fi
             kill "$service_pid"
             wait "$service_pid" || true
             trap - EXIT

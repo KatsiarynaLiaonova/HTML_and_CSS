@@ -1,6 +1,6 @@
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const assert=require('assert');
-const BASE_URL=process.env.STORE_TEST_URL || 'http://127.0.0.1:8769';
+const BASE_URL=process.env.STORE_TEST_URL || 'http://127.0.0.1:8767';
 if(!['127.0.0.1','localhost'].includes(new URL(BASE_URL).hostname))throw Error('Scanner tests require a local isolated database');
 (async()=>{
  const browser=await chromium.launch({...(process.env.CHROMIUM_EXECUTABLE?{executablePath:process.env.CHROMIUM_EXECUTABLE}:{}),args:['--no-sandbox','--disable-dev-shm-usage']});
@@ -39,6 +39,7 @@ if(!['127.0.0.1','localhost'].includes(new URL(BASE_URL).hostname))throw Error('
   await p.locator('#batchScanCreate').click();
   const product=p.locator('#productForm');assert.equal(await product.locator('[name=barcode]').inputValue(),'NEW300');
   assert(!(await product.getAttribute('data-edit')),'unknown product must use a clean new-card form');
+  assert.equal(await selection.inputValue(),'','creating a draft must not silently reselect the first existing product');
   assert.equal((await getState()).products.length,2,'explicit create action only prefills the card');
   // New-card scanner action + Enter must not accidentally submit the form.
   await p.locator('#scanProductBarcode').click();assert(await product.locator('[name=barcode]').evaluate(element=>element===document.activeElement));
@@ -51,9 +52,16 @@ if(!['127.0.0.1','localhost'].includes(new URL(BASE_URL).hostname))throw Error('
   current=await getState();const created=current.products.find(product=>product.barcode==='NEW300');assert(created);
   assert.equal(await selection.inputValue(),created.id,'created card is selected for the pending receipt');
   assert.equal(created.stock,0,'card creation does not silently receive inventory');
+  // A manual selection explicitly cancels an unresolved receiving draft.
+  await scan.fill('DRAFT400');await scan.press('Enter');await p.locator('#batchScanCreate').click();
+  assert.equal(await selection.inputValue(),'','an unresolved draft keeps the receiving selection empty');
+  await selection.selectOption(beta.id);assert.equal(await selection.inputValue(),beta.id,'operator can explicitly select another existing product');
+  await product.locator('[name=name]').fill('Manually abandoned receiving draft');await product.locator('[name=price]').fill('4');
+  await product.locator('button[type=submit]').click();await p.waitForFunction(()=>state.products.length===4);
+  assert.notEqual(await selection.inputValue(),(await getState()).products.find(product=>product.barcode==='DRAFT400').id,'manual selection cancels deferred selection of the draft product');
   // Duplicate scans in the new-card form identify the existing product safely.
   await product.locator('[name=barcode]').fill('ABC100');await product.locator('[name=barcode]').press('Enter');
-  assert((await p.locator('#productScanStatus').textContent()).includes('Alpha product'));assert.equal((await getState()).products.length,3);
+  assert((await p.locator('#productScanStatus').textContent()).includes('Alpha product'));assert.equal((await getState()).products.length,4);
   // Cashier workflow: each Enter adds one piece, refocuses, and unknown scans do not alter the cart.
   await p.locator('[data-page=pos]').click();const cashier=p.locator('#scan');
   await cashier.fill(' beta200 ');await cashier.press('Enter');assert.equal(await p.locator('[data-qty]').inputValue(),'1');
@@ -61,7 +69,7 @@ if(!['127.0.0.1','localhost'].includes(new URL(BASE_URL).hostname))throw Error('
   await cashier.fill('BETA200');await cashier.press('Enter');assert.equal(await p.locator('[data-qty]').inputValue(),'2');
   beforeMutations=mutations.length;
   await cashier.fill('MISSING999');await cashier.press('Enter');assert.equal(await p.locator('[data-qty]').inputValue(),'2');
-  assert.equal(mutations.length,beforeMutations);assert.equal((await getState()).products.length,3);
+  assert.equal(mutations.length,beforeMutations);assert.equal((await getState()).products.length,4);
   assert(await cashier.evaluate(element=>element.selectionStart===0&&element.selectionEnd===element.value.length),'unknown scan is selected for safe replacement');
   // Scanner controls survive language rerenders and RTL does not reverse barcode entry.
   await p.locator('#language').selectOption('ar');await p.locator('[data-page=inventory]').click();
