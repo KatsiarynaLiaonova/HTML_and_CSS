@@ -7,12 +7,23 @@ import json
 from pathlib import Path
 import socket
 import ssl
+import threading
 import certifi
 from urllib.parse import urlsplit
 
 
 def local_address():
-    for address in socket.gethostbyname_ex(socket.gethostname())[2]:
+    addresses, finished = [], threading.Event()
+    def resolve():
+        try:
+            addresses.extend(socket.gethostbyname_ex(socket.gethostname())[2])
+        except OSError:
+            pass
+        finally:
+            finished.set()
+    threading.Thread(target=resolve, daemon=True).start()
+    finished.wait(1)
+    for address in addresses:
         ip = ipaddress.ip_address(address)
         if ip.version == 4 and ip.is_private and not ip.is_loopback:
             return address

@@ -10,7 +10,9 @@ from connections import local_address, prepare_certificate, read_config, save_co
 def configure(folder, smoke_test=False):
     folder = Path(folder)
     current = read_config(folder)
+    if smoke_test: print('Setup check: creating Tk window', flush=True)
     root = tk.Tk()
+    if smoke_test: print('Setup check: Tk window created', flush=True)
     root.title('ALI BABA · Подключение компьютера')
     root.geometry('670x680')
     root.columnconfigure(1, weight=1)
@@ -27,10 +29,12 @@ def configure(folder, smoke_test=False):
         entry.insert(0, value)
         entry.grid(row=row, column=1, sticky='ew', padx=18, pady=8)
         fields[key] = entry
+    if smoke_test: print('Setup check: detecting local address', flush=True)
     try:
         suggested_address = local_address()
     except OSError:
         suggested_address = ''
+    if smoke_test: print('Setup check: building controls', flush=True)
     field(2, 'address', 'Главная касса: IPv4 в сети магазина', current.get('address', suggested_address))
     field(3, 'remote_url', 'Главная касса: HTTPS-адрес Tailscale\n(необязательно для работы в магазине)', current.get('remote_url', ''))
     field(4, 'url', 'Подключение: HTTPS-адрес главной кассы', current.get('url', ''))
@@ -125,6 +129,7 @@ def configure(folder, smoke_test=False):
     failures = []
     if smoke_test:
         def check_modes():
+            print('Setup check: checking connection modes', flush=True)
             try:
                 for selected in ('main', 'client', 'local'):
                     mode.set(next(label for label, value in options.items() if value == selected))
@@ -138,6 +143,7 @@ def configure(folder, smoke_test=False):
             finally:
                 root.destroy()
         root.after(200, check_modes)
+    if smoke_test: print('Setup check: entering GUI event loop', flush=True)
     root.mainloop()
     if failures:
         raise failures[0]
