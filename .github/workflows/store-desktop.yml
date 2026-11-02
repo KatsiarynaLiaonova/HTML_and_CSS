@@ -128,8 +128,8 @@ jobs:
         timeout-minutes: 3
         if: runner.os == 'macOS'
         run: |
-          "dist/ALI BABA.app/Contents/MacOS/AliBaba" --setup-smoke-test
-          "dist/ALI BABA.app/Contents/MacOS/AliBaba" --shared-desktop-smoke-test
+          python tests/run_process_check.py --executable "dist/ALI BABA.app/Contents/MacOS/AliBaba" --setup-smoke-test
+          python tests/run_process_check.py --executable "dist/ALI BABA.app/Contents/MacOS/AliBaba" --shared-desktop-smoke-test
       - name: Check bundled resources
         shell: bash
         run: test -n "$(find dist -name index.html -print -quit)"
