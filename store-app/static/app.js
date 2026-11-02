@@ -13,8 +13,33 @@ const field=(label,html)=>`<label>${t(label)}${html}</label>`;
 const input=(name,type='text',extra='')=>`<input name="${name}" type="${type}" ${extra}>`;
 const currencies=(value,all=false)=>`${all?opt('',t('all'),value):''}${['USD','EUR','EGP','RUB'].map(c=>opt(c,c,value)).join('')}`;
 const productOptions=()=>state.products.map(p=>opt(p.id,p.name,'')).join('');
+function dateText(value){return new Date(value).toLocaleString(lang,state?.shared?{timeZone:state.options.time_zone||'Africa/Cairo'}:{});}
+function reportDate(value){const d=new Date(value);if(!state?.shared)return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');const parts=Object.fromEntries(new Intl.DateTimeFormat('en',{timeZone:state.options.time_zone||'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(d).map(p=>[p.type,p.value]));return `${parts.year}-${parts.month}-${parts.day}`;}
 function notice(message,error=false){$('notice').className=error?'error':'success';$('notice').textContent=message;}
-async function api(path,data){let r=await fetch('/api/'+path,data===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});let result=await r.json();if(!r.ok){const error=Error(result.error);error.status=r.status;throw error;}return result;}
+let pendingCheckout=null,pendingCheckoutKey='';
+function checkoutContext(){return state?.store_id&&state?.account?`ali-baba-pending-sale:${state.store_id}:${state.register_id}:${state.account.login}`:'';}
+function unresolvedCheckout(){
+ const key=checkoutContext();if(key!==pendingCheckoutKey){pendingCheckoutKey=key;try{pendingCheckout=key?JSON.parse(localStorage.getItem(key)||'null'):null;}catch{pendingCheckout=null;}}
+ return pendingCheckout;
+}
+function clearCheckoutAttempt(){if(pendingCheckoutKey)localStorage.removeItem(pendingCheckoutKey);pendingCheckout=null;}
+async function api(path,data){
+ let previousUncertain=false;
+ if(path==='checkout'&&data&&!data.request_id){
+  data={...data,...(state?.store_id?{store_id:state.store_id}:{})};
+  unresolvedCheckout();const signature=JSON.stringify(data);previousUncertain=!!pendingCheckout;
+  if(pendingCheckout&&pendingCheckout.signature!==signature)throw Error('Результат предыдущей продажи неизвестен. Сначала нажмите «Проверить предыдущую продажу».');
+  if(!pendingCheckout)pendingCheckout={signature,id:returnRequestId(),data:JSON.parse(signature)};
+  if(pendingCheckoutKey)localStorage.setItem(pendingCheckoutKey,JSON.stringify(pendingCheckout));
+  data={...data,request_id:pendingCheckout.id};
+ }
+ const authEpoch=window.aliBabaAuthEpoch||0;
+ const r=await fetch('/api/'+path,data===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json',...(window.aliBabaSession?.csrf?{'X-CSRF-Token':window.aliBabaSession.csrf}:{})},body:JSON.stringify(data)});
+ const result=await r.json();
+ if(data===undefined&&authEpoch!==(window.aliBabaAuthEpoch||0))return api(path);
+ if(!r.ok){if(path==='checkout'&&r.status<500&&!(previousUncertain&&[401,403].includes(r.status)))clearCheckoutAttempt();if(r.status===401&&window.aliBabaShowLogin)window.aliBabaShowLogin();const error=Error(result.error);error.status=r.status;throw error;}
+ if(path==='checkout')clearCheckoutAttempt();return result;
+}
 async function action(fn){try{await fn();}catch(e){notice(e.message,true);}}
 function translate(){document.documentElement.lang=lang;document.documentElement.dir=lang==='ar'?'rtl':'ltr';$('language').value=lang;document.querySelectorAll('[data-t]').forEach(e=>e.textContent=t(e.dataset.t));}
 function render(){translate();$('title').textContent=t(page);$('nav').innerHTML=['pos','inventory','adjustments','shifts','reports','labelsBatch','settings'].map((k,i)=>`<button data-page="${k}" class="${page===k?'active':''}"><span>${['▦','▤','⇄','◷','↗','▥','⚙'][i]}</span>${t(k)}</button>`).join('');$('nav').querySelectorAll('button').forEach(b=>b.onclick=()=>{page=b.dataset.page;render();});({pos:renderPOS,inventory:renderInventory,reports:renderReports,settings:renderSettings,adjustments:renderAdjustments,shifts:renderShifts,labelsBatch:renderLabels})[page]();}
@@ -37,5 +62,5 @@ const patterns=['nnnwwnwnn','wnnwnnnnw','nnwwnnnnw','wnwwnnnnn','nnnwwnnnw','wnn
 function barcodeSVG(code){let chars='0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',x=10,rects='';for(let c of '*'+code.toUpperCase()+'*'){let pattern=c==='*'?'nwnnwnwnn':patterns[chars.indexOf(c)];if(!pattern)throw Error('Unsupported barcode');[...pattern].forEach((v,i)=>{let w=v==='w'?3:1;if(i%2===0)rects+=`<rect x="${x}" y="0" width="${w}" height="32"/>`;x+=w;});x+=1;}return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${x+10} 32" preserveAspectRatio="none" role="img" aria-label="${esc(code)}">${rects}</svg>`;}
 function showPrint(html,width,height){$('printArea').innerHTML=html;let style=$('pageStyle');if(!style){style=document.createElement('style');style.id='pageStyle';document.head.append(style);}style.textContent=`@media print{@page{size:${width}mm ${height?height+'mm':'auto'};margin:${height?'0':'3mm'}}`;$('printDialog').showModal();translate();}
 function printLabel(p){if(p.barcode.length>10&&template.width<50)notice(t('enlarge'),true);showPrint(`<div class="label-preview" style="width:${template.width}mm;height:${template.height}mm;padding:1.5mm"><bdi class="name">${esc(p.name)}</bdi><div class="prices" dir="ltr">${['USD','EUR','EGP','RUB'].map(c=>`<span>${c} ${fmt(p.prices[c])}</span>`).join('')}</div>${barcodeSVG(p.barcode)}<span class="code">${esc(p.barcode)}</span></div>`,template.width,template.height);}
-function printReceipt(s){showPrint(`<div class="receipt" style="width:${template.receiptWidth}mm" dir="${lang==='ar'?'rtl':'ltr'}"><h2>${esc(s.shop_name||'ALI BABA')} · ${t('title')}</h2>${s.void?`<p>${t('voided')}: ${esc(s.void.reason)}</p>`:''}<p>${s.id}<br>${new Date(s.created).toLocaleString(lang)}</p><table><thead><tr><th>${t('product')}</th><th>${t('qty')}</th><th>${t('total')}</th></tr></thead><tbody>${s.items.map(l=>`<tr><td><bdi>${esc(l.name)}</bdi><small>${fmt(l.price)} ${s.currency} / ${t(l.unit)}<br>${t('discount')}: ${fmt(l.discount)}</small></td><td>${l.qty}</td><td>${fmt(l.net)}</td></tr>`).join('')}</tbody></table><p>${t('discount')}: ${fmt(s.discount)} ${s.currency}</p><h3>${t('total')}: ${fmt(s.total)} ${s.currency}</h3><p>${t('payment')}: ${t(s.method)}<br>${t('paid')}: ${fmt(s.tender)} ${s.currency}<br>${t('change')}: ${fmt(s.change)} ${s.currency}</p></div>`,template.receiptWidth+6);}
+function printReceipt(s){showPrint(`<div class="receipt" style="width:${template.receiptWidth}mm" dir="${lang==='ar'?'rtl':'ltr'}"><h2>${esc(s.shop_name||'ALI BABA')} · ${t('title')}</h2>${s.void?`<p>${t('voided')}: ${esc(s.void.reason)}</p>`:''}<p>${s.id}<br>${dateText(s.created)}</p><table><thead><tr><th>${t('product')}</th><th>${t('qty')}</th><th>${t('total')}</th></tr></thead><tbody>${s.items.map(l=>`<tr><td><bdi>${esc(l.name)}</bdi><small>${fmt(l.price)} ${s.currency} / ${t(l.unit)}<br>${t('discount')}: ${fmt(l.discount)}</small></td><td>${l.qty}</td><td>${fmt(l.net)}</td></tr>`).join('')}</tbody></table><p>${t('discount')}: ${fmt(s.discount)} ${s.currency}</p><h3>${t('total')}: ${fmt(s.total)} ${s.currency}</h3><p>${t('payment')}: ${t(s.method)}<br>${t('paid')}: ${fmt(s.tender)} ${s.currency}<br>${t('change')}: ${fmt(s.change)} ${s.currency}</p></div>`,template.receiptWidth+6);}
 $('printNow').onclick=()=>window.print();$('closePrint').onclick=()=>$('printDialog').close();$('language').onchange=e=>{lang=e.target.value;localStorage.setItem('nile-language',lang);render();};$('backup').onclick=()=>action(async()=>{let r=await api('backup',{});notice(t('backupDone')+r.file);});

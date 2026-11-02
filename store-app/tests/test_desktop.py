@@ -83,5 +83,29 @@ class DesktopTests(unittest.TestCase):
             self.assertEqual(webview.start.call_args.kwargs['gui'], 'cocoa')
 
 
+    def test_client_window_never_initializes_or_backs_up_a_local_store(self):
+        webview = self.make_webview()
+        gateway = MagicMock(server_port=9876)
+        with self.runtime(webview) as (local_service, backup, _):
+            with patch.object(desktop, 'read_config', return_value={'mode': 'client', 'url': 'https://192.168.1.2:8443', 'certificate': '/public.pem'}), patch.object(desktop, 'create_gateway', return_value=gateway):
+                desktop.run()
+            self.assertEqual(webview.create_window.call_args.args[1], 'http://127.0.0.1:9876')
+            local_service.serve_forever.assert_not_called()
+            backup.assert_not_called()
+            gateway.shutdown.assert_called_once()
+            gateway.server_close.assert_called_once()
+
+    def test_failed_lan_start_does_not_shutdown_an_unstarted_server(self):
+        webview = self.make_webview()
+        with self.runtime(webview) as (service, backup, _):
+            with patch.object(desktop, 'read_config', return_value={'mode': 'main', 'address': '192.168.1.2'}), patch.object(desktop, 'Accounts') as accounts, patch.object(desktop, 'start_lan_server', side_effect=ValueError('Certificate mismatch')):
+                accounts.return_value.has_owner.return_value = True
+                with self.assertRaisesRegex(ValueError, 'Certificate mismatch'):
+                    desktop.run()
+            service.shutdown.assert_not_called()
+            service.server_close.assert_called_once()
+            webview.create_window.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()

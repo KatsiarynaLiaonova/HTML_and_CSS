@@ -1,3 +1,7 @@
-# The server and accounting tests need only Python's standard library.
+# Local accounting uses the standard library; desktop/shared-network tests need these dependencies.
 # Windows: Edge WebView2; macOS: the system WKWebView engine.
 pywebview==6.2.1
+
+# Verified HTTPS between registers on the private shop network.
+cryptography==50.0.2
+certifi==2026.10.23

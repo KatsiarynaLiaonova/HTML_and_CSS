@@ -56,9 +56,9 @@ function pdfPages(bytes,expectedCount,widthMM,heightMM){
      edges:[box.left-outer.left,box.top-outer.top,outer.right-box.right,outer.bottom-box.bottom],
      logical:{width:inner.offsetWidth,height:inner.offsetHeight},matrix:[transform.a,transform.b,transform.c,transform.d]};
    });
-   const quarter=rotation===90||rotation===270,width=quarter?25:38,height=quarter?38:25;
+   const quarter=rotation===90||rotation===270,width=38,height=25;
    near(measured.outer.width,width*96/25.4,'sheet width');near(measured.outer.height,height*96/25.4,'sheet height');
-   near(measured.logical.width,38*96/25.4,'original artwork width');near(measured.logical.height,25*96/25.4,'original artwork height');
+   near(measured.logical.width,(quarter?25:38)*96/25.4,'artwork width within the fixed paper form');near(measured.logical.height,(quarter?38:25)*96/25.4,'artwork height within the fixed paper form');
    for(const edge of measured.edges)near(edge,0,'rotated artwork stays inside its page',1);
    const radians=rotation*Math.PI/180,expected=[Math.cos(radians),Math.sin(radians),-Math.sin(radians),Math.cos(radians)];
    measured.matrix.forEach((value,i)=>near(value,expected[i],'actual artwork rotation',.0001));
@@ -122,7 +122,7 @@ function pdfPages(bytes,expectedCount,widthMM,heightMM){
   const receipt=await p.pdf({path:path.join(output,'receipt-after-rotated-label.pdf'),preferCSSPageSize:true,printBackground:true});
   pdfPages(receipt,1,76);
   assert.deepEqual(errors,[]);
-  console.log('PASS: calibration before setup, all four rotations, saved settings, unchanged logical dimensions, unclipped artwork bounds, correct PDF page sizes, two copies/two pages, price-label confirmation isolation, receipt printing unchanged');
+  console.log('PASS: calibration before setup, all four rotations, saved settings, fixed physical paper dimensions, unclipped artwork bounds, correct PDF page sizes, two copies/two pages, price-label confirmation isolation, receipt printing unchanged');
   console.log('PDFs: '+output);
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exit(1);});

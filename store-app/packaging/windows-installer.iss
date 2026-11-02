@@ -2,7 +2,7 @@
 ; Preserve the previous installer identity so updates retain their installation record.
 AppId=NileStore.Local
 AppName=ALI BABA
-AppVersion=2.1.1
+AppVersion=3.0.0
 DefaultDirName={localappdata}\Programs\ALI BABA
 DefaultGroupName=ALI BABA
 UsePreviousGroup=no
@@ -19,6 +19,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 Source: "..\dist\AliBaba\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 [Icons]
 Name: "{group}\ALI BABA"; Filename: "{app}\AliBaba.exe"
+Name: "{group}\ALI BABA — Подключение"; Filename: "{app}\AliBaba.exe"; Parameters: "--configure-network"
 Name: "{autodesktop}\ALI BABA"; Filename: "{app}\AliBaba.exe"
 [Run]
 Filename: "{app}\AliBaba.exe"; Description: "Open ALI BABA"; Flags: nowait postinstall skipifsilent

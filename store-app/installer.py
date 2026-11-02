@@ -10,7 +10,7 @@ from tkinter import messagebox
 import venv
 
 ROOT = Path(__file__).parent
-FILES = ('server.py', 'desktop.py', 'static', 'README.md', 'requirements-desktop.txt')
+FILES = ('server.py', 'access.py', 'connections.py', 'network_setup.py', 'desktop.py', 'static', 'README.md', 'NETWORK-SETUP.md', 'requirements-desktop.txt')
 
 
 def install_files(target):
@@ -55,7 +55,7 @@ def install():
                 'CFBundleExecutable': 'AliBaba', 'CFBundleName': 'ALI BABA',
                 # Retain the identity used by earlier releases.
                 'CFBundleIdentifier': 'local.nilestore.desktop',
-                'CFBundleVersion': '2.1.1', 'CFBundleShortVersionString': '2.1.1',
+                'CFBundleVersion': '3.0.0', 'CFBundleShortVersionString': '3.0.0',
                 'CFBundlePackageType': 'APPL', 'NSHighResolutionCapable': True,
             }, output)
         subprocess.run(['open', str(app.parent)], check=False)
@@ -81,7 +81,7 @@ def main():
     root = tk.Tk()
     root.title('ALI BABA · Setup')
     root.geometry('540x260')
-    tk.Label(root, text='ALI BABA 2.1.1', font=('Arial', 22, 'bold')).pack(pady=20)
+    tk.Label(root, text='ALI BABA 3.0.0', font=('Arial', 22, 'bold')).pack(pady=20)
     tk.Label(root, text='Install / Update · Установить / Обновить\nClose the previous version first. Your database stays in your home folder.\nFirst installation downloads the desktop runtime. Internet is required.').pack()
     status = tk.Label(root, text='')
     status.pack()

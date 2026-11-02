@@ -36,16 +36,16 @@ Object.assign(words.ar,{returnRetryHint:'إذا انقطع الرد، لن تس�
 
 Object.assign(words.en,{
 labelWidth:'Label width · across the roll, mm',labelHeight:'Label height · along paper feed, mm',labelRotation:'Label print rotation',rotationNone:'No rotation',rotationLeft:'90° left',rotationRight:'90° right',rotationHalf:'180°',
-labelAxesHint:'Keep the measured dimensions: width is across the roll, height follows the paper feed.',labelRotationHint:'Rotation applies only to labels. Try one test label before printing a batch. Quarter turns also swap the output page dimensions to avoid clipping.',
+labelAxesHint:'Keep the measured dimensions: width is across the roll, height follows the paper feed.',labelRotationHint:'Rotation applies only to labels. Try one test label before printing a batch. The paper size stays fixed; only the artwork inside the label rotates.',
 testLabel:'Print a test label',testLabelHint:'The test uses the dimensions and rotation currently shown, including unsaved changes. It does not change stock or confirm replacement labels.',labelTestTop:'TOP ↑',labelTestBottom:'BOTTOM ↓',labelTestLeft:'← LEFT',labelTestRight:'RIGHT →'
 });
 Object.assign(words.ru,{
 labelWidth:'Ширина этикетки · поперек ленты, мм',labelHeight:'Высота этикетки · вдоль подачи, мм',labelRotation:'Поворот печати ценника',rotationNone:'Без поворота',rotationLeft:'Влево на 90°',rotationRight:'Вправо на 90°',rotationHalf:'На 180°',
-labelAxesHint:'Сохраняйте измеренные размеры: ширина — поперек ленты, высота — вдоль движения бумаги.',labelRotationHint:'Поворот применяется только к ценникам. Сначала проверьте одну пробную этикетку. При повороте на 90° стороны выходной страницы тоже меняются местами, чтобы макет не обрезался.',
+labelAxesHint:'Сохраняйте измеренные размеры: ширина — поперек ленты, высота — вдоль движения бумаги.',labelRotationHint:'Поворот применяется только к ценникам. Сначала проверьте одну пробную этикетку. Размер страницы остается прежним: поворачивается только содержимое внутри этикетки.',
 testLabel:'Пробная этикетка',testLabelHint:'Проба использует размеры и поворот, указанные сейчас, даже до сохранения. Остатки и отметки замены ценников не меняются.',labelTestTop:'ВЕРХ ↑',labelTestBottom:'НИЗ ↓',labelTestLeft:'← ЛЕВО',labelTestRight:'ПРАВО →'
 });
 Object.assign(words.ar,{
 labelWidth:'عرض الملصق · عبر اللفة، مم',labelHeight:'ارتفاع الملصق · مع اتجاه الورق، مم',labelRotation:'تدوير طباعة الملصق',rotationNone:'بدون تدوير',rotationLeft:'90° لليسار',rotationRight:'90° لليمين',rotationHalf:'180°',
-labelAxesHint:'احتفظ بالأبعاد المقاسة: العرض عبر اللفة والارتفاع مع اتجاه تغذية الورق.',labelRotationHint:'يطبق التدوير على الملصقات فقط. اختبر ملصقاً واحداً قبل طباعة مجموعة. يبدل تدوير الربع دورة أبعاد صفحة الطباعة أيضاً لمنع قص المحتوى.',
+labelAxesHint:'احتفظ بالأبعاد المقاسة: العرض عبر اللفة والارتفاع مع اتجاه تغذية الورق.',labelRotationHint:'يطبق التدوير على الملصقات فقط. اختبر ملصقاً واحداً قبل طباعة مجموعة. يبقى مقاس الورق ثابتاً؛ يتم تدوير المحتوى داخل الملصق فقط.',
 testLabel:'ملصق تجريبي',testLabelHint:'يستخدم الاختبار الأبعاد والتدوير المعروضين حتى قبل الحفظ. لا يغير المخزون أو يؤكد استبدال الملصقات.',labelTestTop:'أعلى ↑',labelTestBottom:'أسفل ↓',labelTestLeft:'← يسار',labelTestRight:'يمين →'
 });

@@ -1,5 +1,6 @@
 """ALI BABA: local retail accounting, standard library server."""
 import argparse
+import hmac
 import base64
 import copy
 import json
@@ -13,10 +14,12 @@ from contextlib import contextmanager, closing
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from pathlib import Path
+from http.cookies import SimpleCookie
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from access import Accounts, AccessError, may_write
 
-VERSION = '2.1.1'
-SCHEMA = 3
+VERSION = '3.0.0'
+SCHEMA = 4
 ROOT = Path(__file__).parent
 DATA = Path(os.environ.get('STORE_DATA_DIR', Path.home() / '.retail-store'))
 CURRENCIES = ('USD', 'EUR', 'EGP', 'RUB')
@@ -26,7 +29,7 @@ CHOOSE_FOLDER = None
 DEFAULTS = {
     'rounding': {c: .01 for c in CURRENCIES},
     'fees': {m: {'percent': 0, 'fixed': 0} for m in ('card', 'transfer')},
-    'backup_dir': '', 'shop_name': 'ALI BABA',
+    'backup_dir': '', 'shop_name': 'ALI BABA', 'time_zone': 'Africa/Cairo',
     'template': {'width': 38, 'height': 25, 'receiptWidth': 70, 'labelRotation': 0},
 }
 
@@ -117,29 +120,39 @@ def migrate(db, safety=True):
     CREATE TABLE IF NOT EXISTS batches(id INTEGER PRIMARY KEY,product TEXT REFERENCES products(id),received TEXT NOT NULL,qty INTEGER NOT NULL,remaining INTEGER NOT NULL,cost REAL NOT NULL);
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sales(id TEXT PRIMARY KEY,created TEXT NOT NULL,currency TEXT NOT NULL,method TEXT NOT NULL,total REAL NOT NULL,cost_egp REAL NOT NULL,rates TEXT NOT NULL,detail TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS registers(id INTEGER PRIMARY KEY,name TEXT NOT NULL UNIQUE);
+    INSERT OR IGNORE INTO registers VALUES (1,'Касса 1');
+    INSERT OR IGNORE INTO registers VALUES (2,'Касса 2');
     CREATE TABLE IF NOT EXISTS shifts(id INTEGER PRIMARY KEY,opened TEXT NOT NULL,closed TEXT,opening TEXT NOT NULL,closing TEXT,summary TEXT);
-    CREATE UNIQUE INDEX IF NOT EXISTS one_open_shift ON shifts((1)) WHERE closed IS NULL;
     CREATE TABLE IF NOT EXISTS voids(sale_id TEXT PRIMARY KEY REFERENCES sales(id),created TEXT NOT NULL,reason TEXT NOT NULL,shift_id INTEGER NOT NULL REFERENCES shifts(id),fee_refunded INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS cash_movements(id INTEGER PRIMARY KEY,shift_id INTEGER REFERENCES shifts(id),created TEXT,currency TEXT,amount REAL,reason TEXT);
     CREATE TABLE IF NOT EXISTS movements(id INTEGER PRIMARY KEY,created TEXT,product TEXT REFERENCES products(id),kind TEXT,qty INTEGER,reason TEXT,detail TEXT);
     CREATE TABLE IF NOT EXISTS label_prices(product TEXT PRIMARY KEY REFERENCES products(id),signature TEXT NOT NULL,printed TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS sale_returns(id TEXT PRIMARY KEY,sale_id TEXT NOT NULL REFERENCES sales(id),created TEXT NOT NULL,shift_id INTEGER NOT NULL REFERENCES shifts(id),request_id TEXT NOT NULL UNIQUE,request_payload TEXT NOT NULL,detail TEXT NOT NULL);
     CREATE INDEX IF NOT EXISTS returns_by_sale ON sale_returns(sale_id);
+    CREATE TABLE IF NOT EXISTS sale_requests(request_id TEXT PRIMARY KEY,register_id INTEGER NOT NULL REFERENCES registers(id),payload TEXT NOT NULL,sale_id TEXT NOT NULL REFERENCES sales(id));
+    CREATE TABLE IF NOT EXISTS register_print_settings(register_id INTEGER PRIMARY KEY REFERENCES registers(id),settings TEXT NOT NULL);
     ''')
     additions = {
         'products': {'min_stock': 'REAL NOT NULL DEFAULT 0'},
         'batches': {'supplier': "TEXT NOT NULL DEFAULT ''", 'invoice': "TEXT NOT NULL DEFAULT ''", 'origin': "TEXT NOT NULL DEFAULT 'purchase'"},
-        'sales': {'shift_id': 'INTEGER REFERENCES shifts(id)'},
+        'sales': {'shift_id': 'INTEGER REFERENCES shifts(id)', 'register_id': 'INTEGER NOT NULL DEFAULT 1 REFERENCES registers(id)'},
+        'shifts': {'register_id': 'INTEGER NOT NULL DEFAULT 1 REFERENCES registers(id)'},
     }
     for table, columns in additions.items():
         existing = {r['name'] for r in db.execute('PRAGMA table_info(' + table + ')')}
         for column, definition in columns.items():
             if column not in existing:
                 db.execute(f'ALTER TABLE {table} ADD COLUMN {column} {definition}')
-    for key, value in {'rates': dict.fromkeys(CURRENCIES, 1), 'configured': False, 'options': DEFAULTS, 'revision': uuid.uuid4().hex}.items():
+    db.execute('DROP INDEX IF EXISTS one_open_shift')
+    db.execute('CREATE UNIQUE INDEX IF NOT EXISTS one_open_shift_per_register ON shifts(register_id) WHERE closed IS NULL')
+    for key, value in {'rates': dict.fromkeys(CURRENCIES, 1), 'configured': False, 'options': DEFAULTS, 'store_id': uuid.uuid4().hex, 'revision': uuid.uuid4().hex}.items():
         if get_setting(db, key) is None:
             put_setting(db, key, value)
     options = get_setting(db, 'options')
+    if 'time_zone' not in options:
+        options['time_zone'] = DEFAULTS['time_zone']
+        put_setting(db, 'options', options)
     if old_version < 3 and options.get('shop_name') in ('NILE', 'Nile Store'):
         options['shop_name'] = 'ALI BABA'
         put_setting(db, 'options', options)
@@ -168,15 +181,16 @@ def signature(product, rates, options):
     layout = {k: v for k, v in options['template'].items() if k != 'labelRotation'}
     return json.dumps([product['name'], product['barcode'], [price_for(product, c, rates, options) for c in CURRENCIES], layout], ensure_ascii=False)
 
-def sales_list(db):
+def sales_list(db, register_id=None):
     returns = {}
     for row in db.execute('SELECT sale_id,detail FROM sale_returns ORDER BY rowid'):
         returns.setdefault(row['sale_id'], []).append(json.loads(row['detail']))
-    rows = db.execute('SELECT s.detail,v.created AS voided,v.reason,v.fee_refunded FROM sales s LEFT JOIN voids v ON v.sale_id=s.id ORDER BY s.created DESC')
+    rows = db.execute('SELECT s.detail,s.register_id,v.created AS voided,v.reason,v.fee_refunded,vs.register_id AS void_register_id FROM sales s LEFT JOIN voids v ON v.sale_id=s.id LEFT JOIN shifts vs ON vs.id=v.shift_id WHERE (? IS NULL OR s.register_id=?) ORDER BY s.created DESC', (register_id, register_id))
     result = []
     for row in rows:
         sale = json.loads(row['detail'])
-        sale['void'] = {'created': row['voided'], 'reason': row['reason'], 'fee_refunded': bool(row['fee_refunded'])} if row['voided'] else None
+        sale.setdefault('register_id', row['register_id'])
+        sale['void'] = {'created': row['voided'], 'reason': row['reason'], 'fee_refunded': bool(row['fee_refunded']), 'register_id': row['void_register_id'] or 1} if row['voided'] else None
         sale['returns'] = returns.get(sale['id'], [])
         sale['return_lines'] = return_lines(sale, sale['returns'])
         result.append(sale)
@@ -217,15 +231,19 @@ def shifts_list(db):
         result.append(s)
     return result
 
-def snapshot(db):
+def snapshot(db, register_id=1):
     rates, options = get_setting(db, 'rates'), get_setting(db, 'options')
+    print_settings = db.execute('SELECT settings FROM register_print_settings WHERE register_id=?', (register_id,)).fetchone()
     products = [dict(r) for r in db.execute('SELECT p.*,COALESCE(SUM(b.remaining),0)/1000.0 stock,COALESCE(SUM(b.remaining*b.cost),0)/1000.0 stock_value FROM products p LEFT JOIN batches b ON p.id=b.product GROUP BY p.id ORDER BY p.name')]
     printed = {r['product']: r['signature'] for r in db.execute('SELECT * FROM label_prices')}
     for p in products:
         p['prices'] = {c: price_for(p, c, rates, options) for c in CURRENCIES}
         p['signature'] = signature(p, rates, options)
         p['label_changed'] = printed.get(p['id']) != p['signature']
+    if print_settings:
+        options['template'].update(json.loads(print_settings['settings']))
     return {
+        'store_id': get_setting(db, 'store_id'), 'register_id': register_id, 'registers': [dict(r) for r in db.execute('SELECT * FROM registers ORDER BY id')],
         'products': products,
         'batches': [dict(r) for r in db.execute('SELECT b.*,p.name FROM batches b JOIN products p ON p.id=b.product ORDER BY b.id')],
         'rates': rates, 'configured': get_setting(db, 'configured'), 'options': options,
@@ -297,8 +315,8 @@ def fifo_slice(line, start, count):
 def allocation_cost(allocations):
     return sum((decimal(a['qty']) * decimal(a['cost_egp']) for a in allocations), Decimal(0))
 
-def return_preview(db, data):
-    shift = active_shift(db)
+def return_preview(db, data, register_id=1):
+    shift = active_shift(db, register_id)
     row = db.execute('SELECT detail FROM sales WHERE id=?', (data['id'],)).fetchone()
     if not row:
         raise ValueError('Sale not found')
@@ -351,9 +369,9 @@ def return_preview(db, data):
             'cost_egp': money(sum(decimal(i['cost_egp']) for i in items)),
             'loss_cost_egp': money(sum(decimal(i['loss_cost_egp']) for i in items)),
             'fee_refund': money(fee), 'fee_remaining': money(fee_remaining),
-            'return_count': len(previous), 'shift_id': shift['id']}
+            'return_count': len(previous), 'shift_id': shift['id'], 'register_id': register_id}
 
-def customer_return(db, data):
+def customer_return(db, data, register_id=1):
     request_id = data.get('request_id')
     if not isinstance(request_id, str) or not request_id.strip() or len(request_id) > 100:
         raise ValueError('A unique return request ID is required')
@@ -362,11 +380,14 @@ def customer_return(db, data):
     if existing:
         if existing['request_payload'] != payload:
             raise ValueError('This return request ID was already used for a different operation')
-        return json.loads(existing['detail'])
+        event = json.loads(existing['detail'])
+        if event.get('register_id', 1) != register_id:
+            raise ValueError('Return request belongs to another cash register')
+        return event
     reason = data.get('reason')
     if not isinstance(reason, str) or not reason.strip() or data.get('confirmed') is not True:
         raise ValueError('Confirm the money was returned and provide a reason')
-    event = return_preview(db, data)
+    event = return_preview(db, data, register_id)
     if type(data.get('return_count')) is not int or data['return_count'] != event['return_count']:
         raise ValueError('Returns changed. Preview this return again')
     event.update(id=uuid.uuid4().hex[:12].upper(), created=now(), reason=reason.strip(), request_id=request_id)
@@ -397,16 +418,33 @@ def consume(db, product, qty):
         raise ValueError('Insufficient stock')
     return allocations
 
-def active_shift(db):
-    shift = db.execute('SELECT * FROM shifts WHERE closed IS NULL').fetchone()
+def active_shift(db, register_id=1):
+    if type(register_id) is not int or not db.execute('SELECT 1 FROM registers WHERE id=?', (register_id,)).fetchone():
+        raise ValueError('Cash register not found')
+    shift = db.execute('SELECT * FROM shifts WHERE closed IS NULL AND register_id=?', (register_id,)).fetchone()
     if not shift:
         raise ValueError('Open a cash shift before this operation')
     return shift
 
-def checkout(db, data):
+def checkout(db, data, register_id=1):
     db.execute('BEGIN IMMEDIATE')
-    shift = active_shift(db)
-    state = snapshot(db)
+    if data.get('store_id') is not None and data['store_id'] != get_setting(db, 'store_id'):
+        raise ValueError('The store database changed. Reload the application')
+    request_id = data.get('request_id')
+    payload = None
+    if request_id is not None:
+        if not isinstance(request_id, str) or not request_id.strip() or len(request_id) > 100:
+            raise ValueError('A unique sale request ID is required')
+        payload = json.dumps({k: v for k, v in data.items() if k != 'request_id'}, sort_keys=True, allow_nan=False)
+        previous = db.execute('SELECT * FROM sale_requests WHERE request_id=?', (request_id,)).fetchone()
+        if previous:
+            if previous['register_id'] != register_id or previous['payload'] != payload:
+                raise ValueError('Sale request ID already belongs to another operation')
+            result = json.loads(db.execute('SELECT detail FROM sales WHERE id=?', (previous['sale_id'],)).fetchone()[0])
+            db.commit()
+            return result
+    shift = active_shift(db, register_id)
+    state = snapshot(db, register_id)
     if not state['configured']:
         raise ValueError('Set exchange rates before selling')
     if data.get('revision', state['revision']) != state['revision']:
@@ -437,10 +475,12 @@ def checkout(db, data):
         raise ValueError('Cash received is below total')
     fee_rule = options['fees'].get(method, {'percent': 0, 'fixed': 0})
     fee = money(decimal(total) * decimal(fee_rule['percent']) / 100 + decimal(fee_rule['fixed'])) if total else 0
-    sale = {'id': uuid.uuid4().hex[:12].upper(), 'created': now(), 'currency': currency, 'method': method, 'total': total, 'cost_egp': money(cost), 'rates': rates, 'items': lines, 'subtotal': subtotal, 'discount': reduction, 'tender': tender, 'change': money(decimal(tender) - decimal(total)), 'fee': fee, 'fee_rule': fee_rule, 'shift_id': shift['id'], 'shop_name': options['shop_name']}
+    sale = {'id': uuid.uuid4().hex[:12].upper(), 'created': now(), 'currency': currency, 'method': method, 'total': total, 'cost_egp': money(cost), 'rates': rates, 'items': lines, 'subtotal': subtotal, 'discount': reduction, 'tender': tender, 'change': money(decimal(tender) - decimal(total)), 'fee': fee, 'fee_rule': fee_rule, 'shift_id': shift['id'], 'register_id': register_id, 'shop_name': options['shop_name']}
     for line in lines:
         record_movement(db, line['id'], 'sale', -quantity(line['qty'], line['unit']), sale['id'], line['fifo'])
-    db.execute('INSERT INTO sales(id,created,currency,method,total,cost_egp,rates,detail,shift_id) VALUES (?,?,?,?,?,?,?,?,?)', (sale['id'], sale['created'], currency, method, total, sale['cost_egp'], json.dumps(rates), json.dumps(sale, ensure_ascii=False), shift['id']))
+    db.execute('INSERT INTO sales(id,created,currency,method,total,cost_egp,rates,detail,shift_id,register_id) VALUES (?,?,?,?,?,?,?,?,?,?)', (sale['id'], sale['created'], currency, method, total, sale['cost_egp'], json.dumps(rates), json.dumps(sale, ensure_ascii=False), shift['id'], register_id))
+    if request_id is not None:
+        db.execute('INSERT INTO sale_requests VALUES (?,?,?,?)', (request_id, register_id, payload, sale['id']))
     db.commit()
     return sale
 
@@ -449,6 +489,10 @@ def checked_options(data, current):
     for key in data:
         if key not in DEFAULTS:
             raise ValueError('Unknown setting')
+    if 'time_zone' in data:
+        if data['time_zone'] not in ('Africa/Cairo', 'UTC', 'Europe/Moscow', 'Europe/Minsk', 'Europe/Istanbul'):
+            raise ValueError('Choose a supported store time zone')
+        result['time_zone'] = data['time_zone']
     if 'rounding' in data:
         rounding = {}
         for c in CURRENCIES:
@@ -503,21 +547,24 @@ def preview(db, data):
 def record_movement(db, product, kind, qty, reason, allocations):
     db.execute('INSERT INTO movements(created,product,kind,qty,reason,detail) VALUES (?,?,?,?,?,?)', (now(), product, kind, qty, reason, json.dumps(allocations)))
 
-def mutate(db, path, data):
+def mutate(db, path, data, register_id=1):
     if path == '/api/checkout':
-        return checkout(db, data)
+        return checkout(db, data, register_id)
     if path == '/api/preview':
         return preview(db, data)
     if path == '/api/return-preview':
-        return return_preview(db, data)
+        return return_preview(db, data, register_id)
     if path == '/api/backup':
         return backup(db)
     db.execute('BEGIN IMMEDIATE')
     if path == '/api/returns':
-        result = customer_return(db, data)
+        result = customer_return(db, data, register_id)
         db.commit()
         return result
-    if path in ('/api/products', '/api/product-update'):
+    if path == '/api/printer-options':
+        options = checked_options({'template': data['template']}, get_setting(db, 'options'))
+        db.execute('INSERT OR REPLACE INTO register_print_settings VALUES (?,?)', (register_id, json.dumps(options['template'])))
+    elif path in ('/api/products', '/api/product-update'):
         name = data['name'].strip()
         barcode = data.get('barcode', '').strip().upper()
         if not barcode and path == '/api/products':
@@ -557,6 +604,8 @@ def mutate(db, path, data):
             put_setting(db, 'configured', True)
         elif path == '/api/options':
             put_setting(db, 'options', checked_options({k: v for k, v in data.items() if k != 'revision'}, get_setting(db, 'options')))
+            if 'template' in data:
+                db.execute('DELETE FROM register_print_settings WHERE register_id=?', (register_id,))
         else:
             if 'rates' in data:
                 put_setting(db, 'rates', new_rates(data['rates']))
@@ -565,9 +614,11 @@ def mutate(db, path, data):
         revision(db)
     elif path == '/api/shift-open':
         opening = {c: money(nonnegative(data['opening'][c])) for c in CURRENCIES}
-        db.execute('INSERT INTO shifts(opened,opening) VALUES (?,?)', (now(), json.dumps(opening)))
+        if type(register_id) is not int or not db.execute('SELECT 1 FROM registers WHERE id=?', (register_id,)).fetchone():
+            raise ValueError('Cash register not found')
+        db.execute('INSERT INTO shifts(opened,opening,register_id) VALUES (?,?,?)', (now(), json.dumps(opening), register_id))
     elif path == '/api/shift-close':
-        shift = active_shift(db)
+        shift = active_shift(db, register_id)
         if int(data['id']) != shift['id']:
             raise ValueError('Shift changed')
         closing = {c: money(nonnegative(data['closing'][c])) for c in CURRENCIES}
@@ -575,7 +626,7 @@ def mutate(db, path, data):
         summary['difference'] = {c: money(decimal(closing[c]) - decimal(summary['expected'][c])) for c in CURRENCIES}
         db.execute('UPDATE shifts SET closed=?,closing=?,summary=? WHERE id=?', (now(), json.dumps(closing), json.dumps(summary), shift['id']))
     elif path == '/api/cash-movement':
-        shift = active_shift(db)
+        shift = active_shift(db, register_id)
         reason = str(data['reason']).strip()
         amount = money(data['amount'])
         if data['currency'] not in CURRENCIES or not reason or not amount:
@@ -584,7 +635,7 @@ def mutate(db, path, data):
             raise ValueError('Cash withdrawal exceeds expected cash')
         db.execute('INSERT INTO cash_movements(shift_id,created,currency,amount,reason) VALUES (?,?,?,?,?)', (shift['id'], now(), data['currency'], amount, reason))
     elif path == '/api/void':
-        shift = active_shift(db)
+        shift = active_shift(db, register_id)
         reason = str(data['reason']).strip()
         if not reason or data.get('confirmed') is not True:
             raise ValueError('Confirm payment reversal and provide a reason')
@@ -634,7 +685,7 @@ def mutate(db, path, data):
     db.commit()
     if path == '/api/shift-close':
         backup(db)
-    return snapshot(db)
+    return snapshot(db, register_id)
 
 def restore_database(encoded, confirmed):
     if confirmed != 'RESTORE':
@@ -660,7 +711,12 @@ def restore_database(encoded, confirmed):
             if decimal(rates['USD']) != 1:
                 raise ValueError('Invalid base currency in backup')
             if get_setting(source, 'options') is not None:
-                checked_options(get_setting(source, 'options'), copy.deepcopy(DEFAULTS))
+                options = get_setting(source, 'options')
+                folder = options.get('backup_dir', '')
+                if folder and not Path(folder).is_absolute() and (PurePosixPath(folder).is_absolute() or PureWindowsPath(folder).is_absolute()):
+                    options['backup_dir'] = ''
+                    put_setting(source, 'options', options)
+                checked_options(options, copy.deepcopy(DEFAULTS))
             migrate(source, safety=False)
             source.commit()
             with connect() as current:
@@ -675,10 +731,14 @@ def restore_database(encoded, confirmed):
         temp.unlink(missing_ok=True)
 
 class Handler(BaseHTTPRequestHandler):
+    def setup(self):
+        super().setup()
+        self.connection.settimeout(30)
+
     def log_message(self, *args):
         pass
 
-    def reply(self, code, payload, kind='application/json; charset=utf-8', filename=None):
+    def reply(self, code, payload, kind='application/json; charset=utf-8', filename=None, headers=None):
         body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode() if kind.startswith('application/json') else payload
         self.send_response(code)
         self.send_header('Content-Type', kind)
@@ -687,36 +747,87 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('X-Content-Type-Options', 'nosniff')
         if filename:
             self.send_header('Content-Disposition', 'attachment; filename="' + filename + '"')
+        for name, value in (headers or {}).items():
+            self.send_header(name, value)
         self.end_headers()
         self.wfile.write(body)
 
     def valid_host(self):
-        return self.headers.get('Host') in (f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}')
+        allowed = getattr(self.server, 'allowed_hosts', (f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}'))
+        return self.headers.get('Host') in allowed
+
+    def session_token(self):
+        cookies = SimpleCookie()
+        try:
+            cookies.load(self.headers.get('Cookie', ''))
+        except Exception:
+            return ''
+        token = cookies.get('ali_baba_session')
+        return token.value if token else ''
+
+    def identity(self):
+        accounts = getattr(self.server, 'accounts', None)
+        if accounts is None:
+            return {'id': 0, 'login': 'local', 'role': 'owner', 'register_id': 1}, None
+        return accounts.authenticate(self.session_token())
+
+    def session_cookie(self, token, remove=False):
+        # HTTPS listeners and the local Tailscale reverse proxy set this explicitly.
+        secure = getattr(self.server, 'cookie_secure', False) or self.headers.get('Origin', '').startswith('https://') or self.headers.get('X-Forwarded-Proto') == 'https'
+        value = 'ali_baba_session=' + token + '; Path=/; HttpOnly; SameSite=Strict; Max-Age=' + ('0' if remove else '43200')
+        return value + ('; Secure' if secure else '')
+
+    def scoped_snapshot(self, result, account):
+        result['account'] = account
+        result['shared'] = getattr(self.server, 'accounts', None) is not None
+        if account['role'] != 'owner':
+            result['shifts'] = [s for s in result['shifts'] if s['register_id'] == account['register_id']]
+        if getattr(self.server, 'cookie_secure', False) or self.headers.get('X-Forwarded-Proto') == 'https' or self.headers.get('Host') not in (f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}'):
+            result['can_choose_folder'] = False
+        return result
 
     def do_GET(self):
         if not self.valid_host():
             return self.reply(403, {'error': 'Host rejected'})
         try:
+            account, csrf = self.identity() if self.path.startswith('/api/') else (None, None)
+            register = (account['register_id'] or 1) if account else 1
             with LOCK:
-                if self.path in ('/api/state', '/api/sales'):
+                if self.path == '/api/me':
+                    self.reply(200, {'account': account, 'csrf': csrf, 'shared': getattr(self.server, 'accounts', None) is not None})
+                elif self.path == '/api/users':
+                    if account['role'] != 'owner' or getattr(self.server, 'accounts', None) is None:
+                        return self.reply(403, {'error': 'Owner access required'})
+                    self.reply(200, self.server.accounts.users())
+                elif self.path in ('/api/state', '/api/sales'):
                     with connect() as db:
-                        self.reply(200, snapshot(db) if self.path.endswith('state') else sales_list(db))
+                        if self.path.endswith('state'):
+                            result = snapshot(db, register)
+                            result = self.scoped_snapshot(result, account)
+                            self.reply(200, result)
+                        else:
+                            self.reply(200, sales_list(db, register if account['role'] != 'owner' else None))
                 elif self.path == '/api/backup-download':
+                    if account['role'] != 'owner':
+                        return self.reply(403, {'error': 'Owner access required'})
                     with connect() as db:
                         result = backup(db)
                     self.reply(200, Path(result['file']).read_bytes(), 'application/octet-stream', Path(result['file']).name)
-                elif self.path in ('/', '/app.js', '/style.css', '/extra.js', '/translations.js', '/scanner.js'):
+                elif self.path in ('/', '/app.js', '/style.css', '/extra.js', '/translations.js', '/scanner.js', '/accounts.js'):
                     name = 'index.html' if self.path == '/' else self.path[1:]
                     kind = 'text/html' if name.endswith('.html') else 'text/css' if name.endswith('.css') else 'text/javascript'
                     self.reply(200, (ROOT / 'static' / name).read_bytes(), kind + '; charset=utf-8')
                 else:
                     self.reply(404, {'error': 'Not found'})
+        except AccessError as exc:
+            self.reply(401, {'error': str(exc)})
         except (ValueError, sqlite3.Error, OSError) as exc:
             self.reply(400, {'error': str(exc)})
 
     def do_POST(self):
         origin = self.headers.get('Origin')
-        if not self.valid_host() or (origin and origin != f'http://{self.headers.get("Host")}'):
+        valid_origins = getattr(self.server, 'allowed_origins', {f'http://{self.headers.get("Host")}', f'https://{self.headers.get("Host")}'})
+        if not self.valid_host() or (origin and origin not in valid_origins):
             return self.reply(403, {'error': 'Origin rejected'})
         if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
             return self.reply(415, {'error': 'JSON required'})
@@ -725,17 +836,47 @@ class Handler(BaseHTTPRequestHandler):
             if size < 0 or size > 96 * 1024 * 1024:
                 raise ValueError('Request too large (maximum 64 MB database)')
             data = json.loads(self.rfile.read(size))
+            accounts = getattr(self.server, 'accounts', None)
+            if self.path == '/api/login':
+                if accounts is None:
+                    return self.reply(400, {'error': 'Accounts are available in shared mode'})
+                token, csrf, account = accounts.login(data.get('login', ''), data.get('password', ''))
+                return self.reply(200, {'account': account, 'csrf': csrf}, headers={'Set-Cookie': self.session_cookie(token)})
+            account, csrf = self.identity()
+            register = account['register_id'] or 1
+            if accounts is not None:
+                if not hmac.compare_digest(self.headers.get('X-CSRF-Token', ''), csrf):
+                    return self.reply(403, {'error': 'Session confirmation required. Sign in again'})
+                if not may_write(account, self.path):
+                    return self.reply(403, {'error': 'Owner access required'})
+                if self.path == '/api/checkout' and not data.get('request_id'):
+                    return self.reply(400, {'error': 'A unique sale request ID is required'})
+                if self.path == '/api/logout':
+                    accounts.logout(self.session_token())
+                    return self.reply(200, {'ok': True}, headers={'Set-Cookie': self.session_cookie('', remove=True)})
+                if self.path == '/api/users':
+                    result = accounts.create(data['login'], data['password'], data.get('role', 'cashier'), data.get('register_id'))
+                    return self.reply(200, result)
+            if self.path == '/api/choose-backup-folder':
+                if CHOOSE_FOLDER is None or getattr(self.server, 'cookie_secure', False) or self.headers.get('X-Forwarded-Proto') == 'https' or self.headers.get('Host') not in (f'127.0.0.1:{self.server.server_port}', f'localhost:{self.server.server_port}'):
+                    raise ValueError('Choose the backup folder on the main computer')
+                return self.reply(200, {'folder': CHOOSE_FOLDER()})
             with LOCK:
-                if self.path == '/api/choose-backup-folder':
-                    if CHOOSE_FOLDER is None:
-                        raise ValueError('Folder picker is available in the desktop launcher')
-                    result = {'folder': CHOOSE_FOLDER()}
-                elif self.path == '/api/restore':
+                if accounts is not None and account['role'] != 'owner' and self.path in ('/api/void', '/api/return-preview', '/api/returns'):
+                    with connect() as db:
+                        original = db.execute('SELECT register_id FROM sales WHERE id=?', (data.get('id'),)).fetchone()
+                    if not original or original['register_id'] != register:
+                        return self.reply(403, {'error': 'Receipt belongs to another cash register'})
+                if self.path == '/api/restore':
                     result = restore_database(data['file'], data['confirmed'])
                 else:
                     with connect() as db:
-                        result = mutate(db, self.path, data)
+                        result = mutate(db, self.path, data, register_id=register)
+            if isinstance(result, dict) and 'products' in result and 'shifts' in result:
+                result = self.scoped_snapshot(result, account)
             self.reply(200, result)
+        except AccessError as exc:
+            self.reply(401, {'error': str(exc)})
         except (ValueError, KeyError, sqlite3.Error, TypeError, ArithmeticError, OSError) as exc:
             self.reply(400, {'error': str(exc)})
 
@@ -745,11 +886,16 @@ def daily_backup(stop):
             with connect() as db:
                 backup(db)
 
-def create_server(port=8765):
+def create_server(port=8765, accounts=None, allowed_hosts=None):
     initialize()
     with connect() as db:
         backup(db)
-    return ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    service = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    service.daemon_threads = False
+    service.accounts = accounts
+    if allowed_hosts is not None:
+        service.allowed_hosts = allowed_hosts
+    return service
 
 def main():
     parser = argparse.ArgumentParser()
