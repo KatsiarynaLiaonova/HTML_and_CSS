@@ -1,4 +1,5 @@
 import http.client
+from contextlib import closing
 import json
 from pathlib import Path
 import ssl
@@ -67,7 +68,7 @@ class ConnectionTests(unittest.TestCase):
         wrong, _ = prepare_certificate(server.DATA / 'wrong-server', '127.0.0.1')
         gateway = self.start(create_gateway(self.url, wrong))
         self.assertEqual(self.request(gateway, '/api/login', dict(login='owner', password='Owner transport password!'))[0], 502)
-        with self.accounts.connect() as db:
+        with closing(self.accounts.connect()) as db:
             self.assertEqual(db.execute('SELECT COUNT(*) FROM sessions').fetchone()[0], 0)
 
     def test_direct_tls_checks_hostname_and_secure_cookie(self):
