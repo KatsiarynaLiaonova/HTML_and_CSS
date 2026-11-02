@@ -196,7 +196,10 @@ def main():
             self_test()
         elif '--desktop-smoke-test' in sys.argv or '--shared-desktop-smoke-test' in sys.argv:
             self_test()
-            with tempfile.TemporaryDirectory() as folder:
+            # WebView2 can retain its profile lock briefly after its window closes.
+            # Cleanup of disposable smoke data must not turn a passed GUI check
+            # into a failure; assertions and application errors still propagate.
+            with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as folder:
                 server.DATA = Path(folder)
                 run(smoke_test=True, shared_smoke='--shared-desktop-smoke-test' in sys.argv)
         else:
