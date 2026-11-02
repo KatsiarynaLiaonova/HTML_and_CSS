@@ -18,7 +18,7 @@ from http.cookies import SimpleCookie
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from access import Accounts, AccessError, may_write
 
-VERSION = '3.0.0'
+VERSION = '3.0.1'
 SCHEMA = 4
 ROOT = Path(__file__).parent
 DATA = Path(os.environ.get('STORE_DATA_DIR', Path.home() / '.retail-store'))
@@ -115,7 +115,28 @@ def migrate(db, safety=True):
         raise ValueError('This database needs a newer version of ALI BABA')
     if safety and old_version < SCHEMA and db.execute("SELECT 1 FROM sqlite_master WHERE name='sales'").fetchone():
         local_backup(db, prefix='before-upgrade')
+    # SQLite rejects ADD COLUMN ... REFERENCES ... DEFAULT 1 on populated
+    # tables while enforcement is enabled. Suspend it only on this migration
+    # connection, validate every reference before committing, then restore it.
+    # executescript historically committed pending work; do so before PRAGMA,
+    # which cannot change foreign_keys inside an active transaction.
+    db.commit()
+    foreign_keys = db.execute('PRAGMA foreign_keys').fetchone()[0]
+    db.execute('PRAGMA foreign_keys=OFF')
+    try:
+        _migrate_schema(db, old_version)
+        if db.execute('PRAGMA foreign_key_check').fetchone():
+            raise ValueError('Database integrity check failed during upgrade')
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.execute(f'PRAGMA foreign_keys={foreign_keys}')
+
+def _migrate_schema(db, old_version):
     db.executescript('''
+    BEGIN IMMEDIATE;
     CREATE TABLE IF NOT EXISTS products(id TEXT PRIMARY KEY,name TEXT NOT NULL,barcode TEXT UNIQUE NOT NULL,unit TEXT NOT NULL,price REAL NOT NULL);
     CREATE TABLE IF NOT EXISTS batches(id INTEGER PRIMARY KEY,product TEXT REFERENCES products(id),received TEXT NOT NULL,qty INTEGER NOT NULL,remaining INTEGER NOT NULL,cost REAL NOT NULL);
     CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
