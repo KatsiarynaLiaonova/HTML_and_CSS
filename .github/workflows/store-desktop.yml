@@ -105,13 +105,13 @@ jobs:
         run: python tests/run_unit_checks.py
       - name: Check native desktop window from source
         timeout-minutes: 3
-        run: python desktop.py --desktop-smoke-test
+        run: python tests/run_process_check.py desktop.py --desktop-smoke-test
       - name: Check shared desktop login and HTTPS from source
         timeout-minutes: 3
-        run: python desktop.py --shared-desktop-smoke-test
+        run: python tests/run_process_check.py desktop.py --shared-desktop-smoke-test
       - name: Check connection setup window
         timeout-minutes: 1
-        run: python desktop.py --setup-smoke-test
+        run: python tests/run_process_check.py desktop.py --setup-smoke-test
       - name: Build desktop app
         run: python -m PyInstaller packaging/NileStore.spec --noconfirm
       - name: Check Windows app runtime
