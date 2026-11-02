@@ -90,7 +90,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ${{ fromJSON(contains(github.event.head_commit.message, '[mac-check]') && '["macos-latest"]' || '["windows-latest","macos-15-intel","macos-latest"]') }}
+        os: ${{ fromJSON(contains(github.event.head_commit.message, '[mac-check]') && '["macos-15-intel"]' || '["windows-latest","macos-15-intel","macos-latest"]') }}
     runs-on: ${{ matrix.os }}
     defaults:
       run:

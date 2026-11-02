@@ -94,3 +94,24 @@ class ConnectionTests(unittest.TestCase):
         self.assertEqual(first, self.certificate.read_bytes())
         with self.assertRaises(ValueError):
             prepare_certificate(server.DATA / 'network', '192.168.1.2')
+
+
+class AddressDiscoveryTests(unittest.TestCase):
+    def test_unavailable_hostname_does_not_block_connection_setup(self):
+        import time
+        from unittest.mock import patch
+        import connections
+        release = threading.Event()
+        entered = threading.Event()
+        def unavailable(host):
+            entered.set()
+            release.wait(3)
+            return host, [], ['192.168.1.10']
+        with patch.object(connections.socket, 'gethostbyname_ex', side_effect=unavailable):
+            started = time.monotonic()
+            try:
+                self.assertEqual(connections.local_address(), '')
+                self.assertTrue(entered.is_set())
+                self.assertLess(time.monotonic() - started, 2.5)
+            finally:
+                release.set()
